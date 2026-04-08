@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Shield } from 'lucide-react';
@@ -12,15 +12,21 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Guard against double-submit / re-render loops
+  const submittingRef = useRef(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Prevent re-entry if already in-flight
+    if (submittingRef.current || loading) return;
+    submittingRef.current = true;
     setError('');
     setLoading(true);
     try {
       const user = await login(form.userID.trim(), form.password);
       toast.success(`Welcome back, ${user.name}!`);
-      // Only redirect to change-password if this is a fresh login AND mustChangePassword is set
+      // Use replace:true so the login page is removed from history stack,
+      // preventing the back-button loop that triggered infinite redirects.
       if (user.mustChangePassword) {
         navigate('/change-password', { replace: true });
       } else {
@@ -32,6 +38,7 @@ export default function LoginPage() {
       setError(msg);
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -42,7 +49,6 @@ export default function LoginPage() {
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
       position: 'relative', overflow: 'hidden',
     }}>
-      {/* Decorative circles */}
       {[...Array(5)].map((_, i) => (
         <div key={i} style={{
           position: 'absolute', borderRadius: '50%',
@@ -54,7 +60,6 @@ export default function LoginPage() {
 
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
         style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}>
-        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 30 }}>
           <div style={{ width: 70, height: 70, borderRadius: 20, background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
             <Shield size={32} color="white" />
@@ -63,7 +68,6 @@ export default function LoginPage() {
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.845rem', marginTop: 4 }}>Presence of Jesus Ministry, Tiruchirappalli</p>
         </div>
 
-        {/* Card */}
         <div style={{ background: 'white', borderRadius: 24, padding: 30, boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
           <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', marginBottom: 5 }}>Sign In</h2>
           <p style={{ fontSize: '0.845rem', color: '#64748b', marginBottom: 22 }}>Enter your credentials to access the system</p>
@@ -74,12 +78,13 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
+          {/* Use onSubmit on form — avoids duplicate calls from button clicks */}
+          <form onSubmit={handleSubmit} autoComplete="on">
             <div className="form-group">
               <label className="form-label">Username <span className="required">*</span></label>
               <input className="form-input" type="text" placeholder="Enter your username"
                 value={form.userID} onChange={e => setForm({ ...form, userID: e.target.value })}
-                required autoComplete="username" autoFocus />
+                required autoComplete="username" autoFocus disabled={loading} />
             </div>
 
             <div className="form-group">
@@ -88,7 +93,7 @@ export default function LoginPage() {
                 <input className="form-input" type={showPass ? 'text' : 'password'}
                   placeholder="Enter your password"
                   value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-                  required style={{ paddingRight: 44 }} autoComplete="current-password" />
+                  required style={{ paddingRight: 44 }} autoComplete="current-password" disabled={loading} />
                 <button type="button" onClick={() => setShowPass(!showPass)}
                   style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
                   {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
