@@ -12,12 +12,10 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  // Guard against double-submit / re-render loops
   const submittingRef = useRef(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Prevent re-entry if already in-flight
     if (submittingRef.current || loading) return;
     submittingRef.current = true;
     setError('');
@@ -25,13 +23,8 @@ export default function LoginPage() {
     try {
       const user = await login(form.userID.trim(), form.password);
       toast.success(`Welcome back, ${user.name}!`);
-      // Use replace:true so the login page is removed from history stack,
-      // preventing the back-button loop that triggered infinite redirects.
-      if (user.mustChangePassword) {
-        navigate('/change-password', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+      // FIX 2: Always go to dashboard — change password is now optional
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please try again.';
       toast.error(msg);
@@ -78,7 +71,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Use onSubmit on form — avoids duplicate calls from button clicks */}
           <form onSubmit={handleSubmit} autoComplete="on">
             <div className="form-group">
               <label className="form-label">Username <span className="required">*</span></label>
