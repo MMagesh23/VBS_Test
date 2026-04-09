@@ -1,25 +1,4 @@
-// ─── ADD TO App.jsx ───────────────────────────────────────────────
-// 
-// 1. Import at the top:
-//    import QRAttendancePage from './pages/QRAttendancePage';
-//
-// 2. Add to PAGE_TITLES in AppLayout.jsx:
-//    '/qr-attendance': 'QR Attendance',
-//
-// 3. Add this route inside the AppLayout <Route element={...}> block:
-//
-//    <Route
-//      path="/qr-attendance"
-//      element={
-//        <RoleGate roles={['admin', 'teacher']}>
-//          <QRAttendancePage />
-//        </RoleGate>
-//      }
-//    />
-//
-// ─── FULL UPDATED App.jsx ─────────────────────────────────────────
-
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
@@ -42,7 +21,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import ReportsPage from './pages/ReportsPage';
 import MySubmissionsPage from './pages/MySubmissionsPage';
 import { TeacherExportPage } from './pages/TeacherPages';
-import QRAttendancePage from './pages/QRAttendancePage'; // ← NEW
+import QRAttendancePage from './pages/QRAttendancePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,104 +66,86 @@ function PublicRoute({ children }) {
   return children;
 }
 
-function PostLoginRedirect() {
-  const { user, loading, freshLogin } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  useEffect(() => {
-    if (!loading && user && freshLogin) {
-      if (user.mustChangePassword && location.pathname !== '/change-password') {
-        navigate('/change-password', { replace: true });
-      }
-    }
-  }, [loading, user, freshLogin, location.pathname, navigate]);
-
-  return null;
-}
+// FIX 2: Removed PostLoginRedirect entirely — no mustChangePassword forced redirect.
+// Change password is now optional and accessible from sidebar/header only.
 
 function AppRoutes() {
   const { loading } = useAuth();
   if (loading) return <AppLoader />;
 
   return (
-    <>
-      <PostLoginRedirect />
-      <Routes>
-        {/* ── Public ────────────────────────────────────────────── */}
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-        <Route path="/change-password" element={<PrivateRoute><ChangePasswordPage /></PrivateRoute>} />
+    <Routes>
+      {/* ── Public ────────────────────────────────────────────── */}
+      <Route path="/" element={<HomePage />} />
+      <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+      {/* Change password is optional — accessible when logged in */}
+      <Route path="/change-password" element={<PrivateRoute><ChangePasswordPage /></PrivateRoute>} />
 
-        {/* ── Protected app shell ───────────────────────────────── */}
-        <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/students" element={<StudentsPage />} />
-          <Route
-            path="/teachers"
-            element={<RoleGate roles={['admin', 'editor', 'viewer']}><TeachersPage /></RoleGate>}
-          />
-          <Route
-            path="/volunteers"
-            element={<RoleGate roles={['admin', 'editor', 'viewer']}><VolunteersPage /></RoleGate>}
-          />
-          <Route
-            path="/classes"
-            element={<RoleGate roles={['admin', 'viewer']}><ClassesPage /></RoleGate>}
-          />
-          <Route path="/attendance" element={<AttendancePage />} />
-          <Route
-            path="/attendance/submit"
-            element={<RoleGate roles={['admin', 'teacher']}><AttendancePage initialTab="submit" /></RoleGate>}
-          />
+      {/* ── Protected app shell ───────────────────────────────── */}
+      <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/students" element={<StudentsPage />} />
+        <Route
+          path="/teachers"
+          element={<RoleGate roles={['admin', 'editor', 'viewer']}><TeachersPage /></RoleGate>}
+        />
+        <Route
+          path="/volunteers"
+          element={<RoleGate roles={['admin', 'editor', 'viewer']}><VolunteersPage /></RoleGate>}
+        />
+        <Route
+          path="/classes"
+          element={<RoleGate roles={['admin', 'viewer']}><ClassesPage /></RoleGate>}
+        />
+        <Route path="/attendance" element={<AttendancePage />} />
+        <Route
+          path="/attendance/submit"
+          element={<RoleGate roles={['admin', 'teacher']}><AttendancePage initialTab="submit" /></RoleGate>}
+        />
+        <Route
+          path="/qr-attendance"
+          element={<RoleGate roles={['admin', 'teacher']}><QRAttendancePage /></RoleGate>}
+        />
+        <Route
+          path="/verification"
+          element={<RoleGate roles={['admin']}><VerificationQueuePage /></RoleGate>}
+        />
+        <Route
+          path="/analytics"
+          element={<RoleGate roles={['admin', 'viewer']}><AnalyticsPage /></RoleGate>}
+        />
+        <Route
+          path="/reports"
+          element={<RoleGate roles={['admin', 'viewer']}><ReportsPage /></RoleGate>}
+        />
+        <Route
+          path="/users"
+          element={<RoleGate roles={['admin']}><UsersPage /></RoleGate>}
+        />
+        <Route
+          path="/settings"
+          element={<RoleGate roles={['admin']}><SettingsPage /></RoleGate>}
+        />
+        <Route
+          path="/my-submissions"
+          element={<RoleGate roles={['editor']}><MySubmissionsPage /></RoleGate>}
+        />
+        <Route
+          path="/my-class"
+          element={<RoleGate roles={['teacher']}><StudentsPage /></RoleGate>}
+        />
+        <Route
+          path="/my-attendance"
+          element={<RoleGate roles={['teacher']}><AttendancePage initialTab="my-attendance" /></RoleGate>}
+        />
+        <Route
+          path="/teacher-export"
+          element={<RoleGate roles={['teacher', 'admin']}><TeacherExportPage /></RoleGate>}
+        />
+      </Route>
 
-          {/* ── QR ATTENDANCE (admin + teacher) ─────────────────── */}
-          <Route
-            path="/qr-attendance"
-            element={<RoleGate roles={['admin', 'teacher']}><QRAttendancePage /></RoleGate>}
-          />
-
-          <Route
-            path="/verification"
-            element={<RoleGate roles={['admin']}><VerificationQueuePage /></RoleGate>}
-          />
-          <Route
-            path="/analytics"
-            element={<RoleGate roles={['admin', 'viewer']}><AnalyticsPage /></RoleGate>}
-          />
-          <Route
-            path="/reports"
-            element={<RoleGate roles={['admin', 'viewer']}><ReportsPage /></RoleGate>}
-          />
-          <Route
-            path="/users"
-            element={<RoleGate roles={['admin']}><UsersPage /></RoleGate>}
-          />
-          <Route
-            path="/settings"
-            element={<RoleGate roles={['admin']}><SettingsPage /></RoleGate>}
-          />
-          <Route
-            path="/my-submissions"
-            element={<RoleGate roles={['editor']}><MySubmissionsPage /></RoleGate>}
-          />
-          <Route
-            path="/my-class"
-            element={<RoleGate roles={['teacher']}><StudentsPage /></RoleGate>}
-          />
-          <Route
-            path="/my-attendance"
-            element={<RoleGate roles={['teacher']}><AttendancePage initialTab="my-attendance" /></RoleGate>}
-          />
-          <Route
-            path="/teacher-export"
-            element={<RoleGate roles={['teacher', 'admin']}><TeacherExportPage /></RoleGate>}
-          />
-        </Route>
-
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </>
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
   );
 }
 
