@@ -40,7 +40,7 @@ require('./models/Notification');
 require('./models/Sequence');
 require('./models/Staging');
 require('./models/User');
-require('./models/Qrsession'); // ← NEW: QR Attendance sessions
+require('./models/QRSession'); // ← NEW: QR Attendance sessions
 
 // ─── API Routes (loaded AFTER models) ─────────────────────────────
 const routes = require('./routes/index');
