@@ -1,3 +1,28 @@
+// ADD these lines to backend/routes/index.js
+// (Insert after the existing imports block and before module.exports)
+
+// ─── QR ATTENDANCE ROUTES (add to existing routes/index.js) ────────
+// 
+// 1. Add this import at the top with other controller imports:
+//
+// const {
+//   createQRSession, getQRSessions, getQRSession,
+//   deactivateQRSession, scanQRCode, adminScanForTeacher, validateToken,
+// } = require('../controllers/qrAttendanceController');
+//
+// 2. Add these routes before module.exports:
+//
+// ─── QR ATTENDANCE ────────────────────────────────────────────────────
+// router.post('/qr-attendance/sessions', protect, adminOnly, createQRSession);
+// router.get('/qr-attendance/sessions', protect, adminOnly, getQRSessions);
+// router.get('/qr-attendance/sessions/:id', protect, adminOnly, getQRSession);
+// router.put('/qr-attendance/sessions/:id/deactivate', protect, adminOnly, deactivateQRSession);
+// router.post('/qr-attendance/scan', protect, authorize('teacher', 'admin'), scanQRCode);
+// router.post('/qr-attendance/admin-scan', protect, adminOnly, adminScanForTeacher);
+// router.get('/qr-attendance/validate/:token', protect, validateToken);
+
+// ─── FULL UPDATED routes/index.js ─────────────────────────────────────
+
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { protect, adminOnly, editorOrAdmin, authorize } = require('../middleware/auth');
@@ -29,6 +54,17 @@ const { getDailyReport, getClassReport, getStudentReport, getTeacherReport, getV
 const { getSettings, getActiveSettings, createSettings, updateSettings, activateYear, getNotifications, markNotificationRead, markAllRead, broadcastNotification } = require('../controllers/settingsNotificationsController');
 const { getTeacherExportData } = require('../controllers/exportController');
 
+// ── NEW: QR Attendance ──────────────────────────────────────────────
+const {
+  createQRSession,
+  getQRSessions,
+  getQRSession,
+  deactivateQRSession,
+  scanQRCode,
+  adminScanForTeacher,
+  validateToken,
+} = require('../controllers/qrAttendanceController');
+
 const router = express.Router();
 
 // ─── Login rate limit ONLY ─────────────────────────────────────────
@@ -54,21 +90,14 @@ router.put('/users/:id/reset-password', protect, adminOnly, resetPassword);
 router.delete('/users/:id', protect, adminOnly, deleteUser);
 
 // ─── STUDENTS ──────────────────────────────────────────────────────
-// IMPORTANT: Static/special routes MUST come before /:id param routes
 router.get('/students', protect, getStudents);
 router.post('/students', protect, authorize('admin', 'editor'), createStudent);
-
-// Bulk operations — must be before /:id
 router.delete('/students/bulk', protect, adminOnly, bulkDeleteStudents);
 router.put('/students/bulk-allocate', protect, adminOnly, bulkAllocate);
-
-// Staging routes — must be before /:id
 router.get('/students/staging', protect, authorize('admin', 'editor'), getStagingStudents);
 router.post('/students/staging/bulk-approve', protect, adminOnly, bulkApproveStagedStudents);
 router.post('/students/staging/:id/approve', protect, adminOnly, approveStagedStudent);
 router.post('/students/staging/:id/reject', protect, adminOnly, rejectStagedStudent);
-
-// Parameterized routes — LAST
 router.get('/students/:id', protect, getStudent);
 router.put('/students/:id', protect, adminOnly, updateStudent);
 router.delete('/students/:id', protect, adminOnly, deleteStudent);
@@ -76,14 +105,10 @@ router.delete('/students/:id', protect, adminOnly, deleteStudent);
 // ─── TEACHERS ──────────────────────────────────────────────────────
 router.get('/teachers', protect, getTeachers);
 router.post('/teachers', protect, authorize('admin', 'editor'), createTeacher);
-
-// Staging — before /:id
 router.get('/teachers/staging', protect, authorize('admin', 'editor'), getStagingTeachers);
 router.post('/teachers/staging/bulk-approve', protect, adminOnly, bulkApproveStagedTeachers);
 router.post('/teachers/staging/:id/approve', protect, adminOnly, approveStagedTeacher);
 router.post('/teachers/staging/:id/reject', protect, adminOnly, rejectStagedTeacher);
-
-// Parameterized
 router.get('/teachers/:id', protect, getTeacher);
 router.put('/teachers/:id', protect, adminOnly, updateTeacher);
 router.put('/teachers/:id/assign-class', protect, adminOnly, assignTeacherToClass);
@@ -92,14 +117,10 @@ router.delete('/teachers/:id', protect, adminOnly, deleteTeacher);
 // ─── VOLUNTEERS ─────────────────────────────────────────────────────
 router.get('/volunteers', protect, getVolunteers);
 router.post('/volunteers', protect, authorize('admin', 'editor'), createVolunteer);
-
-// Staging — before /:id
 router.get('/volunteers/staging', protect, authorize('admin', 'editor'), getStagingVolunteers);
 router.post('/volunteers/staging/bulk-approve', protect, adminOnly, bulkApproveStagedVolunteers);
 router.post('/volunteers/staging/:id/approve', protect, adminOnly, approveStagedVolunteer);
 router.post('/volunteers/staging/:id/reject', protect, adminOnly, rejectStagedVolunteer);
-
-// Parameterized
 router.get('/volunteers/:id', protect, getVolunteer);
 router.put('/volunteers/:id', protect, adminOnly, updateVolunteer);
 router.delete('/volunteers/:id', protect, adminOnly, deleteVolunteer);
@@ -113,27 +134,31 @@ router.put('/classes/:id', protect, adminOnly, updateClass);
 router.delete('/classes/:id', protect, adminOnly, deleteClass);
 
 // ─── ATTENDANCE ──────────────────────────────────────────────────────
-// Static routes — before /:id
 router.get('/attendance/window-status', protect, getWindowStatus);
 router.get('/attendance/today-summary', protect, authorize('admin', 'editor', 'viewer'), getTodaySummary);
-
-// Student attendance
 router.get('/attendance/students', protect, authorize('admin', 'viewer', 'teacher'), getStudentAttendance);
 router.post('/attendance/students', protect, authorize('admin', 'teacher'), submitStudentAttendance);
 router.put('/attendance/students/:id/modify', protect, adminOnly, modifyStudentAttendance);
 router.delete('/attendance/students/:id', protect, adminOnly, deleteStudentAttendance);
-
-// Teacher attendance
 router.get('/attendance/teachers', protect, authorize('admin', 'editor', 'viewer', 'teacher'), getTeacherAttendance);
 router.post('/attendance/teachers', protect, editorOrAdmin, submitTeacherAttendance);
 router.put('/attendance/teachers/:id/modify', protect, adminOnly, modifyTeacherAttendance);
 router.delete('/attendance/teachers/:id', protect, adminOnly, deleteTeacherAttendance);
-
-// Volunteer attendance
 router.get('/attendance/volunteers', protect, authorize('admin', 'editor', 'viewer'), getVolunteerAttendance);
 router.post('/attendance/volunteers', protect, editorOrAdmin, submitVolunteerAttendance);
 router.put('/attendance/volunteers/:id/modify', protect, adminOnly, modifyVolunteerAttendance);
 router.delete('/attendance/volunteers/:id', protect, adminOnly, deleteVolunteerAttendance);
+
+// ─── QR ATTENDANCE ───────────────────────────────────────────────────
+// Static routes FIRST (before /:id)
+router.get('/qr-attendance/sessions', protect, adminOnly, getQRSessions);
+router.post('/qr-attendance/sessions', protect, adminOnly, createQRSession);
+router.post('/qr-attendance/scan', protect, authorize('teacher', 'admin'), scanQRCode);
+router.post('/qr-attendance/admin-scan', protect, adminOnly, adminScanForTeacher);
+// Parameterized after static
+router.get('/qr-attendance/validate/:token', protect, validateToken);
+router.get('/qr-attendance/sessions/:id', protect, adminOnly, getQRSession);
+router.put('/qr-attendance/sessions/:id/deactivate', protect, adminOnly, deactivateQRSession);
 
 // ─── ANALYTICS ───────────────────────────────────────────────────────
 router.get('/analytics/dashboard', protect, authorize('admin', 'viewer'), getDashboardStats);
@@ -142,7 +167,6 @@ router.get('/analytics/attendance-trends', protect, authorize('admin', 'viewer')
 router.get('/analytics/modifications', protect, adminOnly, getModificationsSummary);
 
 // ─── REPORTS ─────────────────────────────────────────────────────────
-// Static routes — before /:id
 router.get('/reports/daily', protect, authorize('admin', 'viewer'), getDailyReport);
 router.get('/reports/full-year', protect, authorize('admin', 'viewer'), getFullYearReport);
 router.get('/reports/class/:classId', protect, authorize('admin', 'viewer'), getClassReport);
@@ -155,9 +179,8 @@ router.get('/teacher/export-data', protect, authorize('admin', 'teacher'), getTe
 
 // ─── SETTINGS ────────────────────────────────────────────────────────
 router.get('/settings', protect, getSettings);
-router.get('/settings/active', getActiveSettings); // Public — home page countdown
+router.get('/settings/active', getActiveSettings);
 router.post('/settings', protect, adminOnly, createSettings);
-// NOTE: /settings/active must be before /settings/:id
 router.put('/settings/:id', protect, adminOnly, updateSettings);
 router.put('/settings/:id/activate', protect, adminOnly, activateYear);
 
