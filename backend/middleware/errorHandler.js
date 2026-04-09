@@ -2,15 +2,18 @@ const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
+  // Log error for server debugging (skip in production for 404s)
   if (process.env.NODE_ENV === 'development') {
     console.error('Error:', err);
   }
 
+  // Mongoose bad ObjectId
   if (err.name === 'CastError') {
     error.message = 'Resource not found';
     return res.status(404).json({ success: false, message: error.message });
   }
 
+  // Mongoose duplicate key
   if (err.code === 11000) {
     const field = Object.keys(err.keyValue || {})[0] || 'field';
     const value = err.keyValue?.[field];
@@ -18,12 +21,14 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json({ success: false, message: error.message });
   }
 
+  // Mongoose validation error
   if (err.name === 'ValidationError') {
     const messages = Object.values(err.errors).map((e) => e.message);
     error.message = messages.join(', ');
     return res.status(400).json({ success: false, message: error.message });
   }
 
+  // JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({ success: false, message: 'Invalid token' });
   }
@@ -38,8 +43,12 @@ const errorHandler = (err, req, res, next) => {
 };
 
 const notFound = (req, res, next) => {
-  // Silently return 404 for common browser auto-requests — no error logs
-  const silentPaths = ['/favicon.ico', '/robots.txt', '/sitemap.xml', '/apple-touch-icon.png'];
+  // Silently return 404 for common browser auto-requests — no noisy error logs
+  const silentPaths = [
+    '/favicon.ico', '/robots.txt', '/sitemap.xml',
+    '/apple-touch-icon.png', '/apple-touch-icon-precomposed.png',
+    '/manifest.json', '/.well-known/appspecific/com.chrome.devtools.json',
+  ];
   if (silentPaths.includes(req.path)) {
     return res.status(404).end();
   }
