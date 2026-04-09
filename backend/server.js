@@ -23,7 +23,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-
 // ─── Body Parsing ─────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -32,9 +31,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // ─── CRITICAL: Pre-load ALL Mongoose models before routes ─────────
-// This prevents "Student.find is not a function" / "model not registered"
-// errors caused by require() caching issues with nodemon on Windows.
-// Models must be registered with Mongoose BEFORE any route handler runs.
 require('./models/Student');
 require('./models/Class');
 require('./models/TeacherVolunteer');
@@ -44,6 +40,7 @@ require('./models/Notification');
 require('./models/Sequence');
 require('./models/Staging');
 require('./models/User');
+require('./models/Qrsession'); // ← NEW: QR Attendance sessions
 
 // ─── API Routes (loaded AFTER models) ─────────────────────────────
 const routes = require('./routes/index');
@@ -62,11 +59,8 @@ app.get('/api-info', (req, res) => {
   res.json({
     baseUrl: '/api',
     endpoints: [
-      '/auth',
-      '/students',
-      '/teachers',
-      '/classes',
-      '/attendance'
+      '/auth', '/students', '/teachers', '/classes',
+      '/attendance', '/qr-attendance',
     ]
   });
 });
@@ -82,6 +76,7 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/ping', (req, res) => res.send('pong'));
+
 // ─── Error Handling ───────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
@@ -92,6 +87,7 @@ const server = app.listen(PORT, () => {
   console.log(`\n🚀 VBS Management System running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV}`);
   console.log(`🏠 Health: /health`);
+  console.log(`📱 QR Attendance: /api/qr-attendance`);
 });
 
 process.on('unhandledRejection', (err) => {
