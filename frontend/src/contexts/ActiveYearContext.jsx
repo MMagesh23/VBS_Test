@@ -22,13 +22,13 @@ export const ActiveYearProvider = ({ children }) => {
   const { user, loading: authLoading } = useAuth();
   const [activeYear, setActiveYearState] = useState(null);
   const [allYears, setAllYears] = useState([]);
+  // FIX 1: Start loading=true so consumers wait — prevents "no year" flash
   const [loading, setLoading] = useState(true);
   const prevYearId = useRef(null);
   const fetchedRef = useRef(false);
-  const fetchingRef = useRef(false); // prevent concurrent fetches
+  const fetchingRef = useRef(false);
 
   const fetchYears = useCallback(async () => {
-    // Don't fetch if already in-flight
     if (fetchingRef.current) return;
     fetchingRef.current = true;
 
@@ -67,13 +67,11 @@ export const ActiveYearProvider = ({ children }) => {
     }
   }, []);
 
-  // Only fetch once auth is resolved AND user is logged in
-  // This is the key fix: don't call settingsAPI.getAll() until we have a user
   useEffect(() => {
-    if (authLoading) return; // wait for auth to resolve first
+    // FIX 1: Keep loading=true while auth is still resolving
+    if (authLoading) return;
 
     if (!user) {
-      // Not logged in — reset state, no fetch needed
       setActiveYearState(null);
       setAllYears([]);
       setLoading(false);
