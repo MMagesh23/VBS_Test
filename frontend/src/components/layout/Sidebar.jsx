@@ -5,11 +5,11 @@ import {
   LayoutDashboard, Users, GraduationCap, Heart, BookOpen,
   ClipboardCheck, BarChart3, FileText, Settings, LogOut,
   ChevronLeft, ChevronRight, CheckSquare, UserCheck, Home,
-  Download, Bell, Shield,
+  Download, Bell, Shield, QrCode,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-// Role-specific nav — NO cross-role items (teacher never sees admin views)
+// Role-specific nav
 const NAV = {
   admin: [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
@@ -18,6 +18,7 @@ const NAV = {
     { icon: Heart, label: 'Volunteers', path: '/volunteers' },
     { icon: BookOpen, label: 'Classes', path: '/classes' },
     { icon: ClipboardCheck, label: 'Attendance', path: '/attendance' },
+    { icon: QrCode, label: 'QR Attendance', path: '/qr-attendance' },
     { icon: CheckSquare, label: 'Verification Queue', path: '/verification', badge: true },
     { icon: BarChart3, label: 'Analytics', path: '/analytics' },
     { icon: FileText, label: 'Reports', path: '/reports' },
@@ -42,8 +43,8 @@ const NAV = {
     { icon: FileText, label: 'Reports', path: '/reports' },
   ],
   teacher: [
-    // Teachers only see their own relevant pages — no admin views
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+    { icon: QrCode, label: 'QR Attendance', path: '/qr-attendance' },
     { icon: ClipboardCheck, label: 'Mark Attendance', path: '/attendance/submit' },
     { icon: Users, label: 'My Class', path: '/my-class' },
     { icon: ClipboardCheck, label: 'Attendance History', path: '/my-attendance' },
@@ -52,10 +53,10 @@ const NAV = {
 };
 
 const ROLE_THEME = {
-  admin: { accent: '#c8922a', light: 'rgba(200,146,42,0.15)', label: 'Administrator' },
-  editor: { accent: '#16a34a', light: 'rgba(22,163,74,0.15)', label: 'Editor' },
-  viewer: { accent: '#7c3aed', light: 'rgba(124,58,237,0.15)', label: 'Viewer' },
-  teacher: { accent: '#2563eb', light: 'rgba(37,99,235,0.15)', label: 'Teacher' },
+  admin:   { accent: '#c8922a', light: 'rgba(200,146,42,0.15)',  label: 'Administrator' },
+  editor:  { accent: '#16a34a', light: 'rgba(22,163,74,0.15)',   label: 'Editor' },
+  viewer:  { accent: '#7c3aed', light: 'rgba(124,58,237,0.15)',  label: 'Viewer' },
+  teacher: { accent: '#2563eb', light: 'rgba(37,99,235,0.15)',   label: 'Teacher' },
 };
 
 export default function Sidebar({ pendingCount = 0 }) {
@@ -117,6 +118,7 @@ export default function Sidebar({ pendingCount = 0 }) {
         {items.map(item => {
           const Icon = item.icon;
           const hasBadge = item.badge && pendingCount > 0;
+          const isQR = item.path === '/qr-attendance';
           return (
             <NavLink key={item.path} to={item.path}
               style={({ isActive }) => ({
@@ -132,7 +134,7 @@ export default function Sidebar({ pendingCount = 0 }) {
               })}
             >
               <div style={{ position: 'relative', flexShrink: 0 }}>
-                <Icon size={17} />
+                <Icon size={17} color={isQR ? '#fbbf24' : undefined} />
                 {hasBadge && (
                   <span style={{ position: 'absolute', top: -5, right: -5, background: '#ef4444', color: 'white', borderRadius: '50%', fontSize: '0.58rem', fontWeight: 800, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {pendingCount > 9 ? '9+' : pendingCount}
