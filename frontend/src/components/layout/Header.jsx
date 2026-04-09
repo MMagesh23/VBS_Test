@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// Header.jsx — Fix 4: add left padding on mobile for hamburger button
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, X, CheckCheck } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -14,6 +15,15 @@ export default function Header({ title }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showNotifs, setShowNotifs] = useState(false);
+  // FIX 4: detect mobile to add left padding for hamburger
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const { data: notifsData } = useQuery({
     queryKey: ['notifications'],
@@ -37,14 +47,16 @@ export default function Header({ title }) {
   return (
     <header style={{
       background: 'white', borderBottom: '1px solid var(--color-border)',
-      padding: '0 20px', height: 64, display: 'flex', alignItems: 'center',
+      // FIX 4: add left padding on mobile so title doesn't overlap hamburger button
+      padding: isMobile ? '0 16px 0 64px' : '0 20px',
+      height: 64, display: 'flex', alignItems: 'center',
       justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100,
       boxShadow: 'var(--shadow-sm)', gap: 12,
     }}>
-      <h1 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--color-text)', flexShrink: 0 }}>{title}</h1>
+      <h1 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--color-text)', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: isMobile ? '40%' : undefined }}>{title}</h1>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
-        {/* Year Selector — shown for admin/editor/viewer */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, marginLeft: 'auto' }}>
+        {/* Year Selector */}
         {['admin', 'editor', 'viewer'].includes(user?.role) && <YearSelector />}
 
         {/* Notification Bell */}
@@ -60,7 +72,7 @@ export default function Header({ title }) {
           </button>
 
           {showNotifs && (
-            <div style={{ position: 'absolute', right: 0, top: 46, width: 350, background: 'white', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--color-border)', zIndex: 200 }}>
+            <div style={{ position: 'fixed', right: 12, top: 70, width: Math.min(350, window.innerWidth - 24), background: 'white', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--color-border)', zIndex: 200 }}>
               <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>Notifications</span>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -104,10 +116,12 @@ export default function Header({ title }) {
           <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-light))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.82rem', fontWeight: 700 }}>
             {user?.name?.charAt(0).toUpperCase()}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-text)' }}>{user?.name}</span>
-            <span style={{ fontSize: '0.67rem', color: 'var(--color-text-secondary)', textTransform: 'capitalize' }}>{user?.role}</span>
-          </div>
+          {!isMobile && (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-text)' }}>{user?.name}</span>
+              <span style={{ fontSize: '0.67rem', color: 'var(--color-text-secondary)', textTransform: 'capitalize' }}>{user?.role}</span>
+            </div>
+          )}
         </div>
       </div>
 
