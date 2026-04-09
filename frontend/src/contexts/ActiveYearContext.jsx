@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { settingsAPI } from '../services/api';
+import { useAuth } from './AuthContext';
 
 const ActiveYearContext = createContext(null);
 
@@ -18,14 +19,19 @@ const YEAR_BOUND_KEYS = [
 
 export const ActiveYearProvider = ({ children }) => {
   const queryClient = useQueryClient();
+  const { user, loading: authLoading } = useAuth();
   const [activeYear, setActiveYearState] = useState(null);
   const [allYears, setAllYears] = useState([]);
   const [loading, setLoading] = useState(true);
   const prevYearId = useRef(null);
-  // Track if we did initial fetch
   const fetchedRef = useRef(false);
+  const fetchingRef = useRef(false); // prevent concurrent fetches
 
   const fetchYears = useCallback(async () => {
+    // Don't fetch if already in-flight
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+
     try {
       const { data } = await settingsAPI.getAll();
       const years = data?.data || [];
@@ -37,18 +43,15 @@ export const ActiveYearProvider = ({ children }) => {
         return;
       }
 
-      // Priority: stored localStorage → active VBS year → first year
       const stored = localStorage.getItem('selectedVbsYear');
       let chosen = null;
       if (stored) {
         chosen = years.find(y => String(y.year) === stored) || null;
       }
-      // If stored year not found or not set, use active year
       if (!chosen) {
         chosen = years.find(y => y.isActive) || years[0] || null;
       }
 
-      // Only update if it differs — avoid unnecessary re-renders
       if (chosen?._id !== prevYearId.current) {
         setActiveYearState(chosen);
         prevYearId.current = chosen?._id ?? null;
@@ -60,16 +63,31 @@ export const ActiveYearProvider = ({ children }) => {
       console.error('Failed to fetch VBS years:', err);
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   }, []);
 
-  // Fetch on mount
+  // Only fetch once auth is resolved AND user is logged in
+  // This is the key fix: don't call settingsAPI.getAll() until we have a user
   useEffect(() => {
+    if (authLoading) return; // wait for auth to resolve first
+
+    if (!user) {
+      // Not logged in — reset state, no fetch needed
+      setActiveYearState(null);
+      setAllYears([]);
+      setLoading(false);
+      prevYearId.current = null;
+      fetchedRef.current = false;
+      return;
+    }
+
+    // User is authenticated — fetch once
     if (!fetchedRef.current) {
       fetchedRef.current = true;
       fetchYears();
     }
-  }, [fetchYears]);
+  }, [authLoading, user, fetchYears]);
 
   const setActiveYear = useCallback((yearObj) => {
     const newId = yearObj?._id ?? null;
@@ -81,12 +99,12 @@ export const ActiveYearProvider = ({ children }) => {
     } else {
       localStorage.removeItem('selectedVbsYear');
     }
-    // Invalidate all year-bound caches
     YEAR_BOUND_KEYS.forEach(key => queryClient.invalidateQueries({ queryKey: key }));
   }, [queryClient]);
 
   const refreshYears = useCallback(async () => {
     fetchedRef.current = false;
+    fetchingRef.current = false;
     await fetchYears();
     fetchedRef.current = true;
   }, [fetchYears]);
