@@ -1,3 +1,24 @@
+// ─── ADD TO App.jsx ───────────────────────────────────────────────
+// 
+// 1. Import at the top:
+//    import QRAttendancePage from './pages/QRAttendancePage';
+//
+// 2. Add to PAGE_TITLES in AppLayout.jsx:
+//    '/qr-attendance': 'QR Attendance',
+//
+// 3. Add this route inside the AppLayout <Route element={...}> block:
+//
+//    <Route
+//      path="/qr-attendance"
+//      element={
+//        <RoleGate roles={['admin', 'teacher']}>
+//          <QRAttendancePage />
+//        </RoleGate>
+//      }
+//    />
+//
+// ─── FULL UPDATED App.jsx ─────────────────────────────────────────
+
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -21,21 +42,19 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import ReportsPage from './pages/ReportsPage';
 import MySubmissionsPage from './pages/MySubmissionsPage';
 import { TeacherExportPage } from './pages/TeacherPages';
+import QRAttendancePage from './pages/QRAttendancePage'; // ← NEW
 
-// ─── QueryClient: stable singleton, never recreated ───────────────
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
       staleTime: 30000,
       refetchOnWindowFocus: false,
-      // Prevent background refetches from triggering re-renders during navigation
       refetchOnMount: true,
     },
   },
 });
 
-/* ─── Loading screen ────────────────────────────────────────────── */
 function AppLoader() {
   return (
     <div style={{
@@ -53,17 +72,8 @@ function AppLoader() {
   );
 }
 
-/* ─── Route guards ───────────────────────────────────────────────
-   KEY FIX: Both guards return <AppLoader /> while auth is resolving.
-   They NEVER redirect until `loading === false`. This is the single
-   fix that eliminates the reload loop — previously the wildcard `*`
-   route and PrivateRoute both evaluated `user` before it was ready,
-   causing: null→redirect→/→null→redirect... infinitely.
-─────────────────────────────────────────────────────────────────── */
 function PrivateRoute({ children, roles }) {
   const { user, loading } = useAuth();
-
-  // Always wait for auth resolution — never redirect on null user during load
   if (loading) return <AppLoader />;
   if (!user) return <Navigate to="/login" replace />;
   if (roles && !roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
@@ -72,29 +82,19 @@ function PrivateRoute({ children, roles }) {
 
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
-
-  // Always wait — prevents the flash redirect to /login then back to /dashboard
   if (loading) return <AppLoader />;
   if (user) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
-/* ─── Post-login redirect handler ───────────────────────────────
-   Runs ONCE after a fresh login to handle mustChangePassword.
-   Separated from routing to avoid re-render loops.
-─────────────────────────────────────────────────────────────────── */
 function PostLoginRedirect() {
   const { user, loading, freshLogin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    // Only act on a fresh login, not on page refresh with stored token
     if (!loading && user && freshLogin) {
-      if (
-        user.mustChangePassword &&
-        location.pathname !== '/change-password'
-      ) {
+      if (user.mustChangePassword && location.pathname !== '/change-password') {
         navigate('/change-password', { replace: true });
       }
     }
@@ -103,180 +103,91 @@ function PostLoginRedirect() {
   return null;
 }
 
-/* ─── App routes ─────────────────────────────────────────────────
-   KEY FIX: The wildcard `*` route no longer conditionally evaluates
-   `user` inline — it simply shows the loader until auth resolves,
-   then uses a stable PrivateRoute check.
-─────────────────────────────────────────────────────────────────── */
 function AppRoutes() {
   const { loading } = useAuth();
-
-  // Single top-level gate: render nothing until auth state is determined.
-  // This prevents ANY route from mounting prematurely.
   if (loading) return <AppLoader />;
 
   return (
     <>
-      {/* Handles mustChangePassword redirect after fresh login */}
       <PostLoginRedirect />
-
       <Routes>
         {/* ── Public ────────────────────────────────────────────── */}
         <Route path="/" element={<HomePage />} />
-        <Route
-          path="/login"
-          element={<PublicRoute><LoginPage /></PublicRoute>}
-        />
+        <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+        <Route path="/change-password" element={<PrivateRoute><ChangePasswordPage /></PrivateRoute>} />
 
-        {/* ── Change password (logged-in, outside AppLayout) ──── */}
-        <Route
-          path="/change-password"
-          element={<PrivateRoute><ChangePasswordPage /></PrivateRoute>}
-        />
-
-        {/* ── Protected app shell ───────────────────────────────
-             Single PrivateRoute wraps AppLayout. Child routes do NOT
-             wrap in additional PrivateRoute unless role-gating is
-             needed — avoids nested guard conflicts.
-        ─────────────────────────────────────────────────────────── */}
-        <Route
-          element={
-            <PrivateRoute>
-              <AppLayout />
-            </PrivateRoute>
-          }
-        >
+        {/* ── Protected app shell ───────────────────────────────── */}
+        <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/students" element={<StudentsPage />} />
-
-          {/* Role-gated child routes use inline role checks via the
-              RoleGate component instead of nested PrivateRoute to
-              avoid double-guard re-render loops */}
           <Route
             path="/teachers"
-            element={
-              <RoleGate roles={['admin', 'editor', 'viewer']}>
-                <TeachersPage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['admin', 'editor', 'viewer']}><TeachersPage /></RoleGate>}
           />
           <Route
             path="/volunteers"
-            element={
-              <RoleGate roles={['admin', 'editor', 'viewer']}>
-                <VolunteersPage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['admin', 'editor', 'viewer']}><VolunteersPage /></RoleGate>}
           />
           <Route
             path="/classes"
-            element={
-              <RoleGate roles={['admin', 'viewer']}>
-                <ClassesPage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['admin', 'viewer']}><ClassesPage /></RoleGate>}
           />
           <Route path="/attendance" element={<AttendancePage />} />
           <Route
             path="/attendance/submit"
-            element={
-              <RoleGate roles={['admin', 'teacher']}>
-                <AttendancePage initialTab="submit" />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['admin', 'teacher']}><AttendancePage initialTab="submit" /></RoleGate>}
           />
+
+          {/* ── QR ATTENDANCE (admin + teacher) ─────────────────── */}
+          <Route
+            path="/qr-attendance"
+            element={<RoleGate roles={['admin', 'teacher']}><QRAttendancePage /></RoleGate>}
+          />
+
           <Route
             path="/verification"
-            element={
-              <RoleGate roles={['admin']}>
-                <VerificationQueuePage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['admin']}><VerificationQueuePage /></RoleGate>}
           />
           <Route
             path="/analytics"
-            element={
-              <RoleGate roles={['admin', 'viewer']}>
-                <AnalyticsPage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['admin', 'viewer']}><AnalyticsPage /></RoleGate>}
           />
           <Route
             path="/reports"
-            element={
-              <RoleGate roles={['admin', 'viewer']}>
-                <ReportsPage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['admin', 'viewer']}><ReportsPage /></RoleGate>}
           />
           <Route
             path="/users"
-            element={
-              <RoleGate roles={['admin']}>
-                <UsersPage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['admin']}><UsersPage /></RoleGate>}
           />
           <Route
             path="/settings"
-            element={
-              <RoleGate roles={['admin']}>
-                <SettingsPage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['admin']}><SettingsPage /></RoleGate>}
           />
           <Route
             path="/my-submissions"
-            element={
-              <RoleGate roles={['editor']}>
-                <MySubmissionsPage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['editor']}><MySubmissionsPage /></RoleGate>}
           />
           <Route
             path="/my-class"
-            element={
-              <RoleGate roles={['teacher']}>
-                <StudentsPage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['teacher']}><StudentsPage /></RoleGate>}
           />
           <Route
             path="/my-attendance"
-            element={
-              <RoleGate roles={['teacher']}>
-                <AttendancePage initialTab="my-attendance" />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['teacher']}><AttendancePage initialTab="my-attendance" /></RoleGate>}
           />
           <Route
             path="/teacher-export"
-            element={
-              <RoleGate roles={['teacher', 'admin']}>
-                <TeacherExportPage />
-              </RoleGate>
-            }
+            element={<RoleGate roles={['teacher', 'admin']}><TeacherExportPage /></RoleGate>}
           />
         </Route>
 
-        {/* ── Catch-all ──────────────────────────────────────────
-             KEY FIX: No inline `user` evaluation here. PrivateRoute
-             handles the redirect safely after auth has resolved.
-        ─────────────────────────────────────────────────────────── */}
-        <Route
-          path="*"
-          element={<Navigate to="/dashboard" replace />}
-        />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </>
   );
 }
 
-/* ─── RoleGate: lightweight role check for child routes ──────────
-   Unlike PrivateRoute, this does NOT check auth (already done by
-   the parent PrivateRoute wrapping AppLayout). It only checks role.
-   This prevents double-guard re-render loops inside the app shell.
-─────────────────────────────────────────────────────────────────── */
 function RoleGate({ roles, children }) {
   const { user } = useAuth();
   if (!user || !roles.includes(user.role)) {
@@ -285,7 +196,6 @@ function RoleGate({ roles, children }) {
   return children;
 }
 
-/* ─── Root ───────────────────────────────────────────────────────── */
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
