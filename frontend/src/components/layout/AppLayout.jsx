@@ -44,17 +44,34 @@ export default function AppLayout() {
   const pendingCount = dashData?.pendingVerifications?.total || 0;
 
   return (
-    <div className="app-layout">
+    <div className="app-layout" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar pendingCount={pendingCount} />
-      {/* main-content: flex column, full height, no overflow on container */}
-      <div className="main-content" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-        {/* Header: sticky top */}
+
+      <div
+        className="main-content"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0, // 🔥 IMPORTANT (fix scroll bug)
+        }}
+      >
+        {/* Header */}
         <Header title={title} />
-        {/* Page content: scrollable middle */}
-        <div className="page-content" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+
+        {/* Scrollable Content */}
+        <div
+          className="page-content"
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+          }}
+        >
           <Outlet />
         </div>
-        {/* Footer: sticky bottom */}
+
+        {/* Footer */}
         <AppFooter />
       </div>
     </div>
