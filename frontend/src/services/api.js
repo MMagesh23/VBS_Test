@@ -5,12 +5,17 @@ const BASE_URL = process.env.REACT_APP_API_URL || '/api';
 const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
+  timeout: 30000, // FIX: Increased to 30s for large report generation
+  withCredentials: true, // FIX: Required for future httpOnly cookie migration
 });
 
 // ─── Request interceptor: attach access token ──────────────────────
 api.interceptors.request.use(
   (config) => {
+    // NOTE: localStorage is vulnerable to XSS. For a future hardening step,
+    // migrate to httpOnly cookies (requires backend Set-Cookie changes).
+    // Current token storage is acceptable for this internal staff app given
+    // it's deployed behind authentication and CSP headers are set.
     const token = localStorage.getItem('accessToken');
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
@@ -30,19 +35,51 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
+// FIX: Helper to clear auth state and redirect
+const clearAuthAndRedirect = () => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  // FIX: Use replace to prevent back-navigation to authenticated pages
+  if (!window.location.pathname.includes('/login')) {
+    window.location.replace('/login');
+  }
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
+    // FIX: Handle network errors (no response) distinctly from server errors
+    if (!error.response) {
+      if (error.code === 'ECONNABORTED') {
+        return Promise.reject(
+          Object.assign(error, {
+            response: {
+              data: { success: false, message: 'Request timed out. Please try again.' },
+            },
+          })
+        );
+      }
+      return Promise.reject(
+        Object.assign(error, {
+          response: {
+            data: { success: false, message: 'Network error. Check your connection.' },
+          },
+        })
+      );
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
-        }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return api(originalRequest);
-        });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
@@ -50,22 +87,29 @@ api.interceptors.response.use(
 
       const refreshToken = localStorage.getItem('refreshToken');
       if (!refreshToken) {
-        localStorage.clear();
-        window.location.href = '/login';
+        isRefreshing = false;
+        clearAuthAndRedirect();
         return Promise.reject(error);
       }
 
       try {
-        const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
-        localStorage.setItem('accessToken', data.data.accessToken);
-        localStorage.setItem('refreshToken', data.data.refreshToken);
-        api.defaults.headers.common.Authorization = `Bearer ${data.data.accessToken}`;
-        processQueue(null, data.data.accessToken);
+        const { data } = await axios.post(
+          `${BASE_URL}/auth/refresh`,
+          { refreshToken },
+          { timeout: 10000 } // FIX: Shorter timeout for refresh
+        );
+        const newAccessToken = data.data.accessToken;
+        const newRefreshToken = data.data.refreshToken;
+
+        localStorage.setItem('accessToken', newAccessToken);
+        localStorage.setItem('refreshToken', newRefreshToken);
+        api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
+        processQueue(null, newAccessToken);
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        localStorage.clear();
-        window.location.href = '/login';
+        clearAuthAndRedirect();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -104,9 +148,7 @@ export const studentsAPI = {
   update: (id, data) => api.put(`/students/${id}`, data),
   delete: (id) => api.delete(`/students/${id}`),
   bulkDelete: (ids) => api.delete('/students/bulk', { data: { ids } }),
-  // Bulk allocate - sends studentIds array + classId
   bulkAllocate: (data) => api.put('/students/bulk-allocate', data),
-  // Staging
   getStaging: (params) => api.get('/students/staging', { params }),
   approve: (id, data) => api.post(`/students/staging/${id}/approve`, data || {}),
   reject: (id, reason) => api.post(`/students/staging/${id}/reject`, { reason }),
@@ -121,7 +163,6 @@ export const teachersAPI = {
   update: (id, data) => api.put(`/teachers/${id}`, data),
   delete: (id) => api.delete(`/teachers/${id}`),
   assignClass: (id, classId) => api.put(`/teachers/${id}/assign-class`, { classId }),
-  // Staging
   getStaging: () => api.get('/teachers/staging'),
   approve: (id) => api.post(`/teachers/staging/${id}/approve`),
   reject: (id, reason) => api.post(`/teachers/staging/${id}/reject`, { reason }),
@@ -135,7 +176,6 @@ export const volunteersAPI = {
   create: (data) => api.post('/volunteers', data),
   update: (id, data) => api.put(`/volunteers/${id}`, data),
   delete: (id) => api.delete(`/volunteers/${id}`),
-  // Staging
   getStaging: () => api.get('/volunteers/staging'),
   approve: (id) => api.post(`/volunteers/staging/${id}/approve`),
   reject: (id, reason) => api.post(`/volunteers/staging/${id}/reject`, { reason }),
@@ -156,17 +196,14 @@ export const classesAPI = {
 export const attendanceAPI = {
   getWindowStatus: () => api.get('/attendance/window-status'),
   getTodaySummary: (params) => api.get('/attendance/today-summary', { params }),
-  // Student
   getStudentAttendance: (params) => api.get('/attendance/students', { params }),
   submitStudentAttendance: (data) => api.post('/attendance/students', data),
   modifyStudentAttendance: (id, data) => api.put(`/attendance/students/${id}/modify`, data),
   deleteStudentAttendance: (id) => api.delete(`/attendance/students/${id}`),
-  // Teacher
   getTeacherAttendance: (params) => api.get('/attendance/teachers', { params }),
   submitTeacherAttendance: (data) => api.post('/attendance/teachers', data),
   modifyTeacherAttendance: (id, data) => api.put(`/attendance/teachers/${id}/modify`, data),
   deleteTeacherAttendance: (id) => api.delete(`/attendance/teachers/${id}`),
-  // Volunteer
   getVolunteerAttendance: (params) => api.get('/attendance/volunteers', { params }),
   submitVolunteerAttendance: (data) => api.post('/attendance/volunteers', data),
   modifyVolunteerAttendance: (id, data) => api.put(`/attendance/volunteers/${id}/modify`, data),
