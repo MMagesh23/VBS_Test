@@ -73,8 +73,8 @@ const printPage = (title, body, summary = '', vbsYear = '') => {
     <div class="hdr-top">
       <img class="hdr-logo" src="/poj-logo.png" alt="POJ" onerror="this.style.display='none'" />
       <div>
-        <div class="church-name">Presence of Jesus Ministry, Tiruchirappalli</div>
-        <div class="church-sub">Tamil Nadu, India</div>
+        <div class="church-name">Presence of Jesus Ministry</div>
+        <div class="church-sub">Tuticorin, Tamil Nadu</div>
       </div>
     </div>
     <div class="rpt">${title}${vbsYear ? ` — VBS ${vbsYear}` : ''}</div>
