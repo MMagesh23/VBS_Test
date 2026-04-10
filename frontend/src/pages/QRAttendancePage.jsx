@@ -144,7 +144,7 @@ function QRCodeDisplay({ value, size = 280, label, expiresAt }) {
     <img class="logo" src="/poj-logo.png" alt="POJ Ministry" onerror="this.style.display='none'" />
     <div class="org">
       <div class="church-name">Presence of Jesus Ministry</div>
-      <div class="church-sub">Tiruchirappalli, Tamil Nadu, India</div>
+      <div class="church-sub">Tuticorin, Tamil Nadu, India</div>
       ${vbsYear ? `<div class="vbs-tag">Vacation Bible School ${vbsYear}</div>` : ''}
     </div>
     <div style="text-align:right">
