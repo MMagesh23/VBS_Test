@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import AppFooter from './AppFooter';
 import { analyticsAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -24,6 +25,7 @@ const PAGE_TITLES = {
   '/my-attendance': 'My Attendance',
   '/change-password': 'Change Password',
   '/teacher-export': 'Export & Reports',
+  '/qr-attendance': 'QR Attendance',
 };
 
 export default function AppLayout() {
@@ -49,6 +51,7 @@ export default function AppLayout() {
         <div className="page-content">
           <Outlet />
         </div>
+        <AppFooter />
       </div>
     </div>
   );
