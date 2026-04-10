@@ -31,25 +31,35 @@ const buildFullYearPDF = (data, sections) => {
     ministry, vbsTitle, tagline, vbsYear, settings,
     summary, vbsDates, classes, teachers, volunteers, allStudents, generatedAt,
   } = data;
-
-  const headHtml = (title) => `
-    <div class="hdr">
-      <div class="church">✝ ${ministry}</div>
-      <div class="vbs">${vbsTitle} — VBS ${vbsYear}</div>
-      ${tagline ? `<div class="tagline">"${tagline}"</div>` : ''}
-      <div class="rpt-title">${title}</div>
-      <div class="dates">${fmtDate(settings?.dates?.startDate)} — ${fmtDate(settings?.dates?.endDate)} · ${vbsDates.length} Days</div>
-    </div>`;
+  
+const headHtml = (title) => `
+  <div class="hdr">
+    <div class="hdr-top">
+      <img class="logo" src="/poj-logo.png" alt="POJ Ministry" onerror="this.style.display='none'" />
+      <div class="hdr-text">
+        <div class="church">${ministry}</div>
+        <div class="vbs">${vbsTitle} — VBS ${vbsYear}</div>
+        ${tagline ? `<div class="tagline">"${tagline}"</div>` : ''}
+      </div>
+    </div>
+    <div class="hdr-divider"></div>
+    <div class="rpt-title">${title}</div>
+    <div class="dates">${fmtDate(settings?.dates?.startDate)} — ${fmtDate(settings?.dates?.endDate)} · ${vbsDates.length} Days</div>
+  </div>`;
 
   const css = `
     @page { margin: 12mm 10mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 8.5pt; color: #111; }
-    .hdr { text-align: center; border-bottom: 3px solid #1a2f5e; padding-bottom: 8px; margin-bottom: 10px; }
-    .church { font-size: 14pt; font-weight: 800; color: #1a2f5e; }
+    .hdr { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 3px solid #1a2f5e; }
+    .hdr-top { display: flex; align-items: center; gap: 12px; margin-bottom: 5px; }
+    .logo { width: 46px; height: 46px; object-fit: contain; flex-shrink: 0; border-radius: 6px; }
+    .hdr-text { display: flex; flex-direction: column; }
+    .church { font-size: 14pt; font-weight: 800; color: #1a2f5e; line-height: 1.2; }
     .vbs { font-size: 10pt; font-weight: 700; color: #c8922a; margin-top: 2px; }
     .tagline { font-size: 7.5pt; color: #555; font-style: italic; }
-    .rpt-title { font-size: 9pt; font-weight: 700; color: #1a2f5e; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .hdr-divider { height: 1px; background: #e2e8f0; margin: 5px 0; }
+    .rpt-title { font-size: 9pt; font-weight: 700; color: #1a2f5e; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px; }
     .dates { font-size: 7.5pt; color: #666; margin-top: 2px; }
     .section-hdr { background: #1a2f5e; color: white; padding: 5px 10px; font-weight: 800; font-size: 9pt; margin: 12px 0 6px; border-radius: 4px; }
     .sub-hdr { background: #e8edf6; color: #1a2f5e; padding: 4px 10px; font-weight: 700; font-size: 8pt; margin: 8px 0 4px; border-radius: 3px; border-left: 3px solid #1a2f5e; }
