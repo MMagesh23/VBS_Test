@@ -400,7 +400,7 @@ export default function HomePage() {
                 onError={e => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = '✝️'; }} />
             </div>
             <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.82rem', fontWeight: 700 }}>
-              Presence of Jesus Ministry · Tiruchirappalli
+              Presence of Jesus Ministry
             </span>
           </motion.div>
 
@@ -587,7 +587,7 @@ export default function HomePage() {
           <div style={{ fontWeight: 800, color: 'rgba(255,255,255,0.82)', fontSize: '0.95rem', marginBottom: 4 }}>
             Presence of Jesus Ministry
           </div>
-          <div style={{ fontSize: '0.82rem', marginBottom: 14 }}>Tiruchirappalli, Tamil Nadu, India</div>
+          <div style={{ fontSize: '0.82rem', marginBottom: 14 }}>Tuticorin, Tamil Nadu, India</div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', marginBottom: 14 }} />
           <div style={{ fontSize: '0.72rem', opacity: 0.4 }}>
             VBS Management System ·{' '}
