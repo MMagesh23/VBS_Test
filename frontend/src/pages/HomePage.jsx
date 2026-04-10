@@ -583,10 +583,10 @@ export default function HomePage() {
       {/* ── FOOTER ─────────────────────────────────────────────── */}
       <footer style={{ background: '#070d1f', color: 'rgba(255,255,255,0.45)', padding: '36px 24px', textAlign: 'center' }}>
         <div style={{ maxWidth: 540, margin: '0 auto' }}>
-          <div style={{ fontSize: '1.8rem', marginBottom: 8 }}>✝️</div>
           <div style={{ fontWeight: 800, color: 'rgba(255,255,255,0.82)', fontSize: '0.95rem', marginBottom: 4 }}>
             Presence of Jesus Ministry
           </div>
+          <div style={{ fontSize: '0.82rem', marginBottom: 14 }}>Carmel Mount, Peikulam</div>
           <div style={{ fontSize: '0.82rem', marginBottom: 14 }}>Tuticorin, Tamil Nadu, India</div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', marginBottom: 14 }} />
           <div style={{ fontSize: '0.72rem', opacity: 0.4 }}>
