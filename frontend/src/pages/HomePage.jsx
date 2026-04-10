@@ -395,7 +395,7 @@ export default function HomePage() {
             style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)', borderRadius: 100, padding: '7px 16px 7px 8px', marginBottom: 22, border: '1px solid rgba(255,255,255,0.22)' }}
           >
             {/* POJ Logo */}
-            <div style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.15)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <img src="/poj-logo.png" alt="POJ" width={32} height={32} style={{ objectFit: 'cover', borderRadius: '50%' }}
                 onError={e => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = '✝️'; }} />
             </div>
