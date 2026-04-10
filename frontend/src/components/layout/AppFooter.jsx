@@ -1,6 +1,5 @@
 import React from 'react';
 import { useActiveYear } from '../../contexts/ActiveYearContext';
-import { BrandLogo } from '../../brand';
 
 export default function AppFooter() {
   const { activeYear } = useActiveYear();
@@ -8,52 +7,74 @@ export default function AppFooter() {
 
   return (
     <footer style={{
-      background: 'var(--color-primary-dark)',
-      borderTop: '1px solid rgba(255,255,255,0.06)',
-      padding: '10px 28px',
+      background: 'white',
+      borderTop: '1px solid var(--color-border)',
+      padding: '0 24px',
+      height: 44,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: 12,
-      flexWrap: 'wrap',
       flexShrink: 0,
+      position: 'sticky',
+      bottom: 0,
+      zIndex: 50,
     }}>
-      {/* Left — brand */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 6, overflow: 'hidden',
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <BrandLogo size={26} />
-        </div>
-        <div>
-          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.8)', lineHeight: 1.2 }}>
-            Presence of Jesus Ministry
-          </div>
-          <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>
-            Tiruchirappalli, Tamil Nadu, India
-          </div>
-        </div>
+      {/* Left — ministry name */}
+      <div style={{
+        fontSize: '0.75rem',
+        fontWeight: 700,
+        color: 'var(--color-text-secondary)',
+        whiteSpace: 'nowrap',
+      }}>
+        Presence of Jesus Ministry
       </div>
 
-      {/* Center — active VBS */}
-      {activeYear && (
-        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>
-          <span style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>
-            {activeYear.vbsTitle || `VBS ${activeYear.year}`}
-          </span>
-          {activeYear.isActive && (
-            <span style={{ marginLeft: 8, background: '#16a34a', color: 'white', padding: '1px 6px', borderRadius: 99, fontSize: '0.58rem', fontWeight: 800 }}>
-              LIVE
+      {/* Center — active VBS title */}
+      <div style={{
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        color: 'var(--color-text-secondary)',
+        textAlign: 'center',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+      }}>
+        {activeYear ? (
+          <>
+            <span style={{ color: 'var(--color-primary)', fontWeight: 700 }}>
+              {activeYear.vbsTitle || `VBS ${activeYear.year}`}
             </span>
-          )}
-        </div>
-      )}
+            {activeYear.isActive && (
+              <span style={{
+                background: '#16a34a',
+                color: 'white',
+                padding: '1px 6px',
+                borderRadius: 99,
+                fontSize: '0.58rem',
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+              }}>
+                LIVE
+              </span>
+            )}
+          </>
+        ) : (
+          <span style={{ color: 'var(--color-text-muted)' }}>No active VBS year</span>
+        )}
+      </div>
 
       {/* Right — copyright */}
-      <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.25)', whiteSpace: 'nowrap' }}>
+      <div style={{
+        fontSize: '0.72rem',
+        color: 'var(--color-text-muted)',
+        whiteSpace: 'nowrap',
+      }}>
         © {year} VBS Management System
       </div>
     </footer>
