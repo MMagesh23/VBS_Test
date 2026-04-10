@@ -343,7 +343,7 @@ function QRCodeDisplayWithExport({ value, size = 280, label, expiresAt, sessionD
     <img class="logo" src="/poj-logo.png" alt="" onerror="this.style.display='none'" />
     <div style="flex:1">
       <div class="church-name">Presence of Jesus Ministry</div>
-      <div class="church-sub">Tiruchirappalli, Tamil Nadu, India</div>
+      <div class="church-sub">Tuticorin, Tamil Nadu, India</div>
       ${vbsYear ? `<div class="vbs-tag">Vacation Bible School ${vbsYear}</div>` : ''}
     </div>
     <div style="text-align:right">
