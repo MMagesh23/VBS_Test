@@ -31,6 +31,7 @@ function firstDayOfMonth(year, month) {
   return new Date(year, month, 1).getDay();
 }
 
+// Check if a date falls within a range (inclusive)
 function isInVBSRange(date, startDate, endDate) {
   if (!startDate || !endDate) return false;
   const d = date.getTime();
@@ -40,6 +41,7 @@ function isInVBSRange(date, startDate, endDate) {
   return d >= s && d <= e;
 }
 
+// Calculate VBS day number (1-based)
 function getVBSDayNumber(date, startDate) {
   if (!startDate) return null;
   const start = isoToLocal(startDate);
@@ -60,32 +62,20 @@ export default function DateInput({
   error,
   style,
   disabled,
-  vbsStartDate,
-  vbsEndDate,
-  showVBSDays = false,
+  // VBS-specific props for day highlighting
+  vbsStartDate,  // ISO string e.g. "2026-06-10"
+  vbsEndDate,    // ISO string e.g. "2026-06-15"
+  showVBSDays = false, // whether to show VBS day badges
 }) {
   const [open, setOpen] = useState(false);
   const selected = value ? isoToLocal(value) : null;
   const today = new Date();
   const [viewYear, setViewYear] = useState((selected || today).getFullYear());
   const [viewMonth, setViewMonth] = useState((selected || today).getMonth());
-  // FIX 5: track position for calendar popup (open above or below)
-  const [dropUp, setDropUp] = useState(false);
   const containerRef = useRef(null);
-  const calendarRef = useRef(null);
 
   const minDate = min ? isoToLocal(min) : null;
   const maxDate = max ? isoToLocal(max) : null;
-
-  // FIX 5: Calculate whether to open calendar above or below
-  const updateDropDirection = useCallback(() => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const calHeight = 380; // approximate calendar height
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    setDropUp(spaceBelow < calHeight && spaceAbove > spaceBelow);
-  }, []);
 
   useEffect(() => {
     const handler = (e) => {
@@ -99,13 +89,11 @@ export default function DateInput({
     if (selected) { setViewYear(selected.getFullYear()); setViewMonth(selected.getMonth()); }
   }, [value]);
 
+  // When opening, navigate to VBS start month if showVBSDays and no value selected
   useEffect(() => {
     if (open && showVBSDays && vbsStartDate && !selected) {
       const s = isoToLocal(vbsStartDate);
       if (s) { setViewYear(s.getFullYear()); setViewMonth(s.getMonth()); }
-    }
-    if (open) {
-      updateDropDirection();
     }
   }, [open]);
 
@@ -148,6 +136,7 @@ export default function DateInput({
     ? selected.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
     : '';
 
+  // Determine if current view has VBS days
   const hasVBSDaysInView = showVBSDays && vbsStartDate && vbsEndDate &&
     cells.some(d => d && isInVBSRange(d, vbsStartDate, vbsEndDate));
 
@@ -188,30 +177,11 @@ export default function DateInput({
       {error && <div style={{ fontSize: '0.73rem', color: 'var(--color-danger)', marginTop: 4 }}>{error}</div>}
 
       {open && (
-        // FIX 5: Use position absolute with dynamic top/bottom, higher z-index
-        // and ensure it never clips off-screen
-        <div
-          ref={calendarRef}
-          style={{
-            position: 'absolute',
-            // Open above if not enough space below
-            ...(dropUp
-              ? { bottom: 'calc(100% + 6px)', top: 'auto' }
-              : { top: 'calc(100% + 6px)', bottom: 'auto' }
-            ),
-            left: 0,
-            // FIX 5: very high z-index so it's never hidden behind other elements
-            zIndex: 9999,
-            background: 'white',
-            border: '1px solid var(--color-border)',
-            borderRadius: 14,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-            width: 300,
-            overflow: 'hidden',
-            // Ensure doesn't go off right side of viewport
-            maxWidth: 'calc(100vw - 24px)',
-          }}
-        >
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 500,
+          background: 'white', border: '1px solid var(--color-border)',
+          borderRadius: 14, boxShadow: 'var(--shadow-xl)', width: 300, overflow: 'hidden',
+        }}>
           {/* VBS Legend */}
           {showVBSDays && hasVBSDaysInView && (
             <div style={{ padding: '6px 12px', background: 'linear-gradient(135deg, #1a2f5e, #2a4a8e)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -268,6 +238,7 @@ export default function DateInput({
               let bgColor = 'transparent';
               let textColor = isDisabledDay ? 'var(--color-text-muted)' : 'var(--color-text)';
               let outlineColor = 'none';
+              let extraStyle = {};
 
               if (isSelected) {
                 bgColor = 'var(--color-primary)';
@@ -289,23 +260,39 @@ export default function DateInput({
                   disabled={isDisabledDay}
                   title={isVBSDay && dayNum ? `VBS Day ${dayNum}` : undefined}
                   style={{
-                    width: '100%', aspectRatio: '1', borderRadius: 8, border: 'none',
+                    width: '100%',
+                    aspectRatio: '1',
+                    borderRadius: 8,
+                    border: 'none',
                     cursor: isDisabledDay ? 'not-allowed' : 'pointer',
                     fontSize: '0.78rem',
                     fontWeight: isSelected || isToday || isVBSStart || isVBSEnd ? 800 : isVBSDay ? 700 : 400,
-                    background: bgColor, color: textColor,
+                    background: bgColor,
+                    color: textColor,
                     outline: isToday && !isSelected ? `1.5px solid ${outlineColor}` : 'none',
                     opacity: isDisabledDay ? 0.35 : 1,
                     transition: 'background 0.12s',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 0,
                     position: 'relative',
+                    ...extraStyle,
                   }}
                   onMouseEnter={e => { if (!isSelected && !isDisabledDay) e.currentTarget.style.background = isVBSDay ? '#fde68a' : 'var(--color-bg)'; }}
                   onMouseLeave={e => { if (!isSelected && !isDisabledDay) e.currentTarget.style.background = bgColor; }}
                 >
                   <span style={{ lineHeight: 1, fontSize: '0.78rem' }}>{date.getDate()}</span>
                   {isVBSDay && dayNum && (
-                    <span style={{ fontSize: '0.5rem', fontWeight: 800, lineHeight: 1, marginTop: 1, color: isSelected ? 'rgba(255,255,255,0.85)' : '#c2410c', letterSpacing: '0.02em' }}>
+                    <span style={{
+                      fontSize: '0.5rem',
+                      fontWeight: 800,
+                      lineHeight: 1,
+                      marginTop: 1,
+                      color: isSelected ? 'rgba(255,255,255,0.85)' : '#c2410c',
+                      letterSpacing: '0.02em',
+                    }}>
                       D{dayNum}
                     </span>
                   )}
