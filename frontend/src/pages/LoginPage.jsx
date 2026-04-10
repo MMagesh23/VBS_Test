@@ -58,7 +58,7 @@ export default function LoginPage() {
             <Shield size={32} color="white" />
           </div>
           <h1 style={{ color: 'white', fontSize: '1.5rem', fontWeight: 800 }}>VBS Management</h1>
-          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.845rem', marginTop: 4 }}>Presence of Jesus Ministry, Tiruchirappalli</p>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.845rem', marginTop: 4 }}>Presence of Jesus Ministry</p>
         </div>
 
         <div style={{ background: 'white', borderRadius: 24, padding: 30, boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
