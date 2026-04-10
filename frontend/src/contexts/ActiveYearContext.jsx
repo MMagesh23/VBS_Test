@@ -22,7 +22,7 @@ export const ActiveYearProvider = ({ children }) => {
   const { user, loading: authLoading } = useAuth();
   const [activeYear, setActiveYearState] = useState(null);
   const [allYears, setAllYears] = useState([]);
-  // FIX 1: Start loading=true so consumers wait — prevents "no year" flash
+  // FIX: Start loading=true so consumers wait — prevents "no year" flash
   const [loading, setLoading] = useState(true);
   const prevYearId = useRef(null);
   const fetchedRef = useRef(false);
@@ -60,15 +60,19 @@ export const ActiveYearProvider = ({ children }) => {
         }
       }
     } catch (err) {
+      // FIX: Always set loading=false even on error — prevents infinite spinner
       console.error('Failed to fetch VBS years:', err);
+      setAllYears([]);
+      setActiveYearState(null);
     } finally {
+      // FIX: Always runs — no more infinite loading state
       setLoading(false);
       fetchingRef.current = false;
     }
   }, []);
 
   useEffect(() => {
-    // FIX 1: Keep loading=true while auth is still resolving
+    // FIX: Keep loading=true while auth is still resolving
     if (authLoading) return;
 
     if (!user) {
@@ -103,6 +107,7 @@ export const ActiveYearProvider = ({ children }) => {
   const refreshYears = useCallback(async () => {
     fetchedRef.current = false;
     fetchingRef.current = false;
+    setLoading(true);
     await fetchYears();
     fetchedRef.current = true;
   }, [fetchYears]);
