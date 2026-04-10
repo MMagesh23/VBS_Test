@@ -287,7 +287,7 @@ function ExportAttendanceModal({ isOpen, onClose, date, records, classes }) {
       @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
     </style></head><body>
     <div style="border-bottom:3px solid #1a2f5e;padding-bottom:10px;margin-bottom:14px">
-      <h1>✝ Presence of Jesus Ministry, Tiruchirappalli</h1>
+      <h1>✝ Presence of Jesus Ministry</h1>
       <h2>Student Attendance — ${formatDisplayDate(date)}</h2>
     </div>
 
