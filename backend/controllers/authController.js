@@ -2,6 +2,29 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { generateTokens } = require('../middleware/auth');
 
+// ─── Timing-safe string comparison helper ─────────────────────────
+const crypto = require('crypto');
+const safeEqual = (a, b) => {
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  } catch {
+    return false;
+  }
+};
+
+// ─── Clean expired refresh tokens from user document ─────────────
+const cleanExpiredTokens = (refreshTokens) => {
+  const now = Date.now();
+  return refreshTokens.filter((t) => {
+    try {
+      jwt.verify(t.token, process.env.JWT_REFRESH_SECRET, { algorithms: ['HS256'] });
+      return true;
+    } catch {
+      return false; // Remove expired/invalid tokens
+    }
+  });
+};
+
 // @desc    Login user
 // @route   POST /api/auth/login
 // @access  Public
@@ -12,8 +35,17 @@ const login = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide username and password' });
     }
 
-    const user = await User.findOne({ userID: userID.toLowerCase() }).select('+password');
-    if (!user || !(await user.comparePassword(password))) {
+    // FIX: Always query regardless of user existence to prevent user enumeration timing attacks
+    const user = await User.findOne({ userID: userID.toLowerCase().trim() }).select('+password');
+
+    // FIX: Use constant-time comparison; compare password even if user not found
+    // to prevent timing-based user enumeration
+    const dummyHash = '$2a$12$invalidhashfortimingprotection.notarealpassword123';
+    const isValid = user
+      ? await user.comparePassword(password)
+      : await User.schema.methods.comparePassword.call({ password: dummyHash }, password).catch(() => false);
+
+    if (!user || !isValid) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
     if (!user.isActive) {
@@ -22,9 +54,10 @@ const login = async (req, res, next) => {
 
     const { accessToken, refreshToken } = generateTokens(user._id);
 
-    // Store refresh token
-    user.refreshTokens.push({ token: refreshToken });
-    if (user.refreshTokens.length > 5) user.refreshTokens.shift(); // keep last 5
+    // Clean expired tokens, then add new one (keep max 5)
+    user.refreshTokens = cleanExpiredTokens(user.refreshTokens);
+    user.refreshTokens.push({ token: refreshToken, createdAt: new Date() });
+    if (user.refreshTokens.length > 5) user.refreshTokens = user.refreshTokens.slice(-5);
     user.lastLogin = new Date();
     await user.save();
 
@@ -54,27 +87,40 @@ const login = async (req, res, next) => {
 const refresh = async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
-    if (!refreshToken) return res.status(401).json({ success: false, message: 'No refresh token' });
+    if (!refreshToken) {
+      return res.status(401).json({ success: false, message: 'No refresh token' });
+    }
 
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    const user = await User.findById(decoded.id);
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, { algorithms: ['HS256'] });
+    } catch {
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+    }
 
-    if (!user || !user.refreshTokens.some((t) => t.token === refreshToken)) {
+    const user = await User.findById(decoded.id).select('+refreshTokens');
+    if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'Invalid refresh token' });
     }
 
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user._id);
+    // FIX: Use timing-safe comparison to find the token
+    const tokenEntry = user.refreshTokens.find((t) => safeEqual(t.token, refreshToken));
+    if (!tokenEntry) {
+      // FIX: Token not found = possible token reuse attack — invalidate ALL tokens for this user
+      user.refreshTokens = [];
+      await user.save();
+      return res.status(401).json({ success: false, message: 'Invalid refresh token — all sessions invalidated' });
+    }
 
-    // Replace old refresh token
-    user.refreshTokens = user.refreshTokens.filter((t) => t.token !== refreshToken);
-    user.refreshTokens.push({ token: newRefreshToken });
+    // FIX: Rotate refresh token — remove old, issue new (prevent replay attacks)
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user._id);
+    user.refreshTokens = user.refreshTokens.filter((t) => !safeEqual(t.token, refreshToken));
+    user.refreshTokens.push({ token: newRefreshToken, createdAt: new Date() });
+    if (user.refreshTokens.length > 5) user.refreshTokens = user.refreshTokens.slice(-5);
     await user.save();
 
     res.json({ success: true, data: { accessToken, refreshToken: newRefreshToken } });
   } catch (err) {
-    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
-      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
-    }
     next(err);
   }
 };
@@ -85,9 +131,15 @@ const refresh = async (req, res, next) => {
 const logout = async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select('+refreshTokens');
     if (user && refreshToken) {
-      user.refreshTokens = user.refreshTokens.filter((t) => t.token !== refreshToken);
+      user.refreshTokens = user.refreshTokens.filter((t) => {
+        try {
+          return !safeEqual(t.token, refreshToken);
+        } catch {
+          return true;
+        }
+      });
       await user.save();
     }
     res.json({ success: true, message: 'Logged out successfully' });
@@ -108,15 +160,28 @@ const changePassword = async (req, res, next) => {
     if (newPassword.length < 8) {
       return res.status(400).json({ success: false, message: 'New password must be at least 8 characters' });
     }
+    // FIX: Enforce stronger passwords in production
+    if (process.env.NODE_ENV === 'production') {
+      const strongPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+      if (!strongPassword.test(newPassword)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password must contain uppercase, lowercase, and a number',
+        });
+      }
+    }
 
-    const user = await User.findById(req.user._id).select('+password');
+    const user = await User.findById(req.user._id).select('+password +refreshTokens');
     if (!(await user.comparePassword(currentPassword))) {
       return res.status(401).json({ success: false, message: 'Current password is incorrect' });
+    }
+    if (await user.comparePassword(newPassword)) {
+      return res.status(400).json({ success: false, message: 'New password must differ from current password' });
     }
 
     user.password = newPassword;
     user.mustChangePassword = false;
-    user.refreshTokens = [];
+    user.refreshTokens = []; // Invalidate all sessions on password change
     await user.save();
 
     res.json({ success: true, message: 'Password changed successfully. Please login again.' });
@@ -129,6 +194,7 @@ const changePassword = async (req, res, next) => {
 // @route   GET /api/auth/me
 // @access  Private
 const getMe = async (req, res) => {
+  // req.user already excludes password and refreshTokens (set in protect middleware)
   res.json({ success: true, data: req.user });
 };
 
