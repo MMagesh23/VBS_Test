@@ -50,8 +50,11 @@ const printPage = (title, body, summary = '', vbsYear = '') => {
     @page{size:A4;margin:14mm}*{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',Arial,sans-serif;font-size:9.5pt;color:#111}
     .hdr{border-bottom:2.5px solid #1a2f5e;padding-bottom:10px;margin-bottom:12px}
-    .church{font-size:13pt;font-weight:800;color:#1a2f5e}
-    .rpt{font-size:10.5pt;font-weight:700;color:#c8922a;margin-top:3px}
+    .hdr-top{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+    .hdr-logo{width:42px;height:42px;object-fit:contain;flex-shrink:0;border-radius:6px}
+    .church-name{font-size:13pt;font-weight:800;color:#1a2f5e;line-height:1.2}
+    .church-sub{font-size:7.5pt;color:#666;margin-top:1px}
+    .rpt{font-size:10.5pt;font-weight:700;color:#c8922a;margin-top:5px}
     .sm{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
     .sc{border:1px solid #ddd;border-radius:5px;padding:7px 12px}
     .sc .n{font-size:15pt;font-weight:800;color:#1a2f5e}
@@ -66,10 +69,21 @@ const printPage = (title, body, summary = '', vbsYear = '') => {
     .ftr{margin-top:14px;font-size:7.5pt;color:#888;border-top:1px solid #ddd;padding-top:7px;display:flex;justify-content:space-between}
     @media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
   </style></head><body>
-  <div class="hdr"><div class="church">✝ Presence of Jesus Ministry, Tiruchirappalli</div>
-  <div class="rpt">${title}${vbsYear ? ` — VBS ${vbsYear}` : ''}</div></div>
+  <div class="hdr">
+    <div class="hdr-top">
+      <img class="hdr-logo" src="/poj-logo.png" alt="POJ" onerror="this.style.display='none'" />
+      <div>
+        <div class="church-name">Presence of Jesus Ministry, Tiruchirappalli</div>
+        <div class="church-sub">Tamil Nadu, India</div>
+      </div>
+    </div>
+    <div class="rpt">${title}${vbsYear ? ` — VBS ${vbsYear}` : ''}</div>
+  </div>
   ${summary}${body}
-  <div class="ftr"><span>VBS Management System</span><span>Generated: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</span></div>
+  <div class="ftr">
+    <span>VBS Management System</span>
+    <span>Generated: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</span>
+  </div>
   </body></html>`);
   w.document.close();
   setTimeout(() => { w.focus(); w.print(); }, 500);
