@@ -1,27 +1,3 @@
-// ADD these lines to backend/routes/index.js
-// (Insert after the existing imports block and before module.exports)
-
-// ─── QR ATTENDANCE ROUTES (add to existing routes/index.js) ────────
-// 
-// 1. Add this import at the top with other controller imports:
-//
-// const {
-//   createQRSession, getQRSessions, getQRSession,
-//   deactivateQRSession, scanQRCode, adminScanForTeacher, validateToken,
-// } = require('../controllers/qrAttendanceController');
-//
-// 2. Add these routes before module.exports:
-//
-// ─── QR ATTENDANCE ────────────────────────────────────────────────────
-// router.post('/qr-attendance/sessions', protect, adminOnly, createQRSession);
-// router.get('/qr-attendance/sessions', protect, adminOnly, getQRSessions);
-// router.get('/qr-attendance/sessions/:id', protect, adminOnly, getQRSession);
-// router.put('/qr-attendance/sessions/:id/deactivate', protect, adminOnly, deactivateQRSession);
-// router.post('/qr-attendance/scan', protect, authorize('teacher', 'admin'), scanQRCode);
-// router.post('/qr-attendance/admin-scan', protect, adminOnly, adminScanForTeacher);
-// router.get('/qr-attendance/validate/:token', protect, validateToken);
-
-// ─── FULL UPDATED routes/index.js ─────────────────────────────────────
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -50,7 +26,11 @@ const {
   getVolunteerAttendance, submitVolunteerAttendance, modifyVolunteerAttendance, deleteVolunteerAttendance,
 } = require('../controllers/teacherVolunteerAttendanceController');
 const { getDashboardStats, getStudentAnalytics, getAttendanceTrends, getModificationsSummary } = require('../controllers/analyticsController');
-const { getDailyReport, getClassReport, getStudentReport, getTeacherReport, getVolunteerReport, getFullYearReport } = require('../controllers/reportsController');
+const { 
+  getDailyReport, getClassReport, getStudentReport, getTeacherReport,
+  getVolunteerReport, getFullYearReport,
+  getVillageList, getVillageReport, getCategoryReport,     // ← ADD THESE
+} = require('../controllers/reportsController');
 const { getSettings, getActiveSettings, createSettings, updateSettings, activateYear, getNotifications, markNotificationRead, markAllRead, broadcastNotification } = require('../controllers/settingsNotificationsController');
 const { getTeacherExportData } = require('../controllers/exportController');
 
@@ -169,6 +149,9 @@ router.get('/analytics/modifications', protect, adminOnly, getModificationsSumma
 // ─── REPORTS ─────────────────────────────────────────────────────────
 router.get('/reports/daily', protect, authorize('admin', 'viewer'), getDailyReport);
 router.get('/reports/full-year', protect, authorize('admin', 'viewer'), getFullYearReport);
+router.get('/reports/villages', protect, authorize('admin', 'viewer'), getVillageList);
+router.get('/reports/village', protect, authorize('admin', 'viewer'), getVillageReport);
+router.get('/reports/category/:category', protect, authorize('admin', 'viewer'), getCategoryReport);
 router.get('/reports/class/:classId', protect, authorize('admin', 'viewer'), getClassReport);
 router.get('/reports/student/:studentId', protect, authorize('admin', 'viewer'), getStudentReport);
 router.get('/reports/teacher/:teacherId', protect, authorize('admin', 'viewer'), getTeacherReport);
