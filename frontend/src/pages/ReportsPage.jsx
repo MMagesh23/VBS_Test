@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   FileText, Calendar, BookOpen, GraduationCap, Heart,
-  MapPin, Users, Printer, ChevronDown, ChevronUp
+  MapPin, Users, Printer, ChevronDown, ChevronUp, Download
 } from 'lucide-react';
 import { reportsAPI, classesAPI, teachersAPI, volunteersAPI, studentsAPI, settingsAPI } from '../services/api';
 import api from '../services/api';
