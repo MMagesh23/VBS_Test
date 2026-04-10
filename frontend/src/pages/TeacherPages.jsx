@@ -49,8 +49,11 @@ const buildStudentDetailsPDF = (data) => {
     @page { size: A4 landscape; margin: 15mm 12mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9pt; color: #1a1a1a; }
-    .header { text-align: center; border-bottom: 3px solid #1a2f5e; padding-bottom: 10px; margin-bottom: 12px; }
-    .church-name { font-size: 16pt; font-weight: 800; color: #1a2f5e; letter-spacing: 0.5px; }
+    .header { border-bottom: 3px solid #1a2f5e; padding-bottom: 10px; margin-bottom: 12px; }
+    .hdr-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+    .hdr-logo { width: 44px; height: 44px; object-fit: contain; flex-shrink: 0; border-radius: 6px; }
+    .church-name { font-size: 14pt; font-weight: 800; color: #1a2f5e; line-height: 1.2; }
+    .church-sub { font-size: 8pt; color: #666; margin-top: 1px; }
     .vbs-title { font-size: 11pt; font-weight: 700; color: #c8922a; margin-top: 2px; }
     .tagline { font-size: 8.5pt; color: #555; font-style: italic; margin-top: 2px; }
     .meta { display: flex; justify-content: space-between; margin: 8px 0 12px; padding: 8px 12px; background: #f4f6fb; border-radius: 6px; font-size: 8pt; }
@@ -64,7 +67,13 @@ const buildStudentDetailsPDF = (data) => {
   </style>
   </head><body>
   <div class="header">
-    <div class="church-name">✝ ${ministry}</div>
+    <div class="hdr-row">
+      <img class="hdr-logo" src="/poj-logo.png" alt="Presence of Jesus Ministry" onerror="this.style.display='none'" />
+      <div>
+        <div class="church-name">${ministry}</div>
+        <div class="church-sub">Tiruchirappalli, Tamil Nadu, India</div>
+      </div>
+    </div>
     <div class="vbs-title">${vbsTitle} — VBS ${vbsYear}</div>
     ${tagline ? `<div class="tagline">"${tagline}"</div>` : ''}
   </div>
@@ -145,8 +154,11 @@ const buildAttendanceTemplatePDF = (data) => {
     @page { size: A4 landscape; margin: 12mm 10mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 8.5pt; color: #1a1a1a; }
-    .header { text-align: center; border-bottom: 3px solid #1a2f5e; padding-bottom: 8px; margin-bottom: 10px; }
-    .church-name { font-size: 15pt; font-weight: 800; color: #1a2f5e; }
+    .header { border-bottom: 3px solid #1a2f5e; padding-bottom: 10px; margin-bottom: 12px; }
+    .hdr-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+    .hdr-logo { width: 44px; height: 44px; object-fit: contain; flex-shrink: 0; border-radius: 6px; }
+    .church-name { font-size: 14pt; font-weight: 800; color: #1a2f5e; line-height: 1.2; }
+    .church-sub { font-size: 8pt; color: #666; margin-top: 1px; }    
     .vbs-title { font-size: 10pt; font-weight: 700; color: #c8922a; margin-top: 2px; }
     .tagline { font-size: 8pt; color: #555; font-style: italic; }
     .meta { display: flex; justify-content: space-between; margin: 6px 0 10px; padding: 7px 12px; background: #f4f6fb; border-radius: 6px; font-size: 8pt; }
@@ -173,7 +185,13 @@ const buildAttendanceTemplatePDF = (data) => {
   </style>
   </head><body>
   <div class="header">
-    <div class="church-name">✝ ${ministry}</div>
+    <div class="hdr-row">
+      <img class="hdr-logo" src="/poj-logo.png" alt="Presence of Jesus Ministry" onerror="this.style.display='none'" />
+      <div>
+        <div class="church-name">${ministry}</div>
+        <div class="church-sub">Tiruchirappalli, Tamil Nadu, India</div>
+      </div>
+    </div>
     <div class="vbs-title">${vbsTitle} — VBS ${vbsYear}</div>
     ${tagline ? `<div class="tagline">"${tagline}"</div>` : ''}
   </div>
