@@ -535,6 +535,7 @@ function StudentReport({ vbsYear }) {
     select: d => d.data?.data,
   });
 
+  // Enhanced print with all student details
   const handlePrint = () => {
     if (!data) return;
     const { student, attendance } = data;
@@ -546,16 +547,44 @@ function StudentReport({ vbsYear }) {
       { l: 'Absent', v: attendance?.absent },
       { l: 'Rate', v: `${attendance?.rate ?? 0}%` },
     ]);
+
+    const profileSection = `
+      <div class="section-head">Student Profile</div>
+      <table>
+        <tbody>
+          <tr><td style="font-weight:700;width:180px">Student ID</td><td style="font-family:monospace">${student?.studentId || '—'}</td><td style="font-weight:700;width:180px">Name</td><td>${student?.name || '—'}</td></tr>
+          <tr><td style="font-weight:700">Grade</td><td>${student?.grade || '—'}</td><td style="font-weight:700">Category</td><td>${student?.category || '—'}</td></tr>
+          <tr><td style="font-weight:700">Gender</td><td style="text-transform:capitalize">${student?.gender || '—'}</td><td style="font-weight:700">Religion</td><td>${student?.religion || '—'}${student?.christianDenomination ? ` (${student.christianDenomination})` : ''}</td></tr>
+          <tr><td style="font-weight:700">Parent / Guardian</td><td>${student?.parentName || '—'}</td><td style="font-weight:700">Village</td><td>${student?.village || '—'}</td></tr>
+          <tr><td style="font-weight:700">Contact Number</td><td style="font-family:monospace">${student?.contactNumber || '—'}</td><td style="font-weight:700">WhatsApp</td><td style="font-family:monospace">${student?.whatsappNumber || student?.contactNumber || '—'}</td></tr>
+          <tr><td style="font-weight:700">School</td><td colspan="3">${student?.schoolName || '—'}</td></tr>
+          <tr><td style="font-weight:700">Class Assigned</td><td>${student?.classAssigned?.name || 'Unassigned'}</td><td style="font-weight:700">VBS Year</td><td>${student?.vbsYear || '—'}</td></tr>
+        </tbody>
+      </table>`;
+
     const historyRows = (attendance?.history || []).map((h, i) =>
-      `<tr style="background:${i % 2 === 0 ? '#f9fafb' : 'white'}">
+      `<tr style="background:${i%2===0?'#f9fafb':'white'}">
         <td>${fmtDate(h.date)}</td>
-        <td><span style="padding:2px 8px;border-radius:4px;font-size:7.5pt;font-weight:700;background:${h.status === 'present' ? '#dcfce7' : '#fee2e2'};color:${h.status === 'present' ? '#15803d' : '#b91c1c'}">${h.status === 'present' ? '✓ Present' : '✗ Absent'}</span></td>
-        <td>${h.isModified ? '<span style="color:#c2410c;font-weight:700">⚠ Modified</span>' : '<span style="color:#15803d">✓ Original</span>'}</td>
+        <td><span style="padding:2px 8px;border-radius:4px;font-size:7.5pt;font-weight:700;background:${h.status==='present'?'#dcfce7':'#fee2e2'};color:${h.status==='present'?'#15803d':'#b91c1c'}">${h.status === 'present' ? '✓ Present' : '✗ Absent'}</span></td>
+        <td>${h.isModified ? '<span style="color:#c2410c;font-weight:700">⚠ Modified</span>' : '<span style="color:#16a34a">✓ Original</span>'}</td>
       </tr>`
     ).join('');
-    printPage(`Student Report — ${student?.name}`,
-      `<div class="section-head">Attendance History</div>${mkTable(['Date', 'Status', 'Record Type'], historyRows)}`,
-      sum, vbsYear);
+
+    const body = `${profileSection}
+      <div class="section-head">Attendance Summary</div>
+      <table>
+        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Days Present</td><td style="font-weight:700;color:#16a34a">${attendance?.present || 0}</td></tr>
+          <tr><td>Days Absent</td><td style="font-weight:700;color:#dc2626">${attendance?.absent || 0}</td></tr>
+          <tr><td>Total Days</td><td style="font-weight:700">${attendance?.total || 0}</td></tr>
+          <tr><td>Attendance Rate</td><td style="font-weight:800;color:${(attendance?.rate||0)>=80?'#16a34a':(attendance?.rate||0)>=60?'#d97706':'#dc2626'}">${attendance?.rate ?? 0}%</td></tr>
+        </tbody>
+      </table>
+      <div class="section-head">Day-by-Day History</div>
+      ${mkTable(['Date', 'Status', 'Record Type'], historyRows)}`;
+
+    printPage(`Student Report — ${student?.name}`, body, sum, vbsYear);
   };
 
   if (!selectedId) return (
@@ -591,6 +620,7 @@ function StudentReport({ vbsYear }) {
         <button className="btn btn-secondary btn-sm" onClick={() => { setSelectedId(''); setSearch(''); }}>← Back</button>
       </div>
 
+      {/* Profile Card */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <div>
@@ -603,7 +633,7 @@ function StudentReport({ vbsYear }) {
               {student?.classAssigned && <> · Class: <strong>{student.classAssigned.name}</strong></>}
             </div>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={handlePrint}><Printer size={13} /> Print</button>
+          <button className="btn btn-secondary btn-sm" onClick={handlePrint}><Printer size={13} /> Print Full Report</button>
         </div>
         <div className="card-body">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
@@ -624,6 +654,7 @@ function StudentReport({ vbsYear }) {
         </div>
       </div>
 
+      {/* Attendance Summary */}
       <StatRow items={[
         { label: 'Present', value: attendance?.present, color: '#16a34a' },
         { label: 'Absent', value: attendance?.absent, color: '#dc2626' },
@@ -631,6 +662,7 @@ function StudentReport({ vbsYear }) {
         { label: 'Rate', value: `${attendance?.rate ?? 0}%`, color: attendance?.rate >= 80 ? '#16a34a' : attendance?.rate >= 60 ? '#d97706' : '#dc2626' },
       ]} />
 
+      {/* History */}
       <SectionCard title="📅 Attendance History">
         <table>
           <thead><tr><th>Date</th><th>Status</th><th>Record</th></tr></thead>
