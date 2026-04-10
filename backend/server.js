@@ -23,7 +23,6 @@ app.set('trust proxy', 1);
 connectDB();
 
 // ─── Security Middleware ──────────────────────────────────────────
-// Helmet with explicit CSP — prevents XSS, clickjacking, MIME sniffing
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -40,7 +39,7 @@ app.use(
         upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
       },
     },
-    crossOriginEmbedderPolicy: false, // Allow external resources in responses
+    crossOriginEmbedderPolicy: false,
     hsts: {
       maxAge: 31536000,
       includeSubDomains: true,
@@ -49,8 +48,7 @@ app.use(
   })
 );
 
-// ─── CORS: Validate allowed origin against an explicit allowlist ───
-// Never trust FRONTEND_URL blindly — validate it's a proper URL
+// ─── CORS ─────────────────────────────────────────────────────────
 const getAllowedOrigins = () => {
   const origins = [];
   if (process.env.FRONTEND_URL) {
@@ -73,7 +71,6 @@ const allowedOrigins = getAllowedOrigins();
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow server-to-server requests (no origin header) in development only
       if (!origin) {
         if (process.env.NODE_ENV !== 'production') return callback(null, true);
         return callback(new Error('Origin header required in production'));
@@ -86,7 +83,7 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    maxAge: 86400, // Cache preflight for 24h
+    maxAge: 86400,
   })
 );
 
@@ -95,7 +92,6 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ─── Logging ──────────────────────────────────────────────────────
-// In production skip logging sensitive paths (auth)
 app.use(
   morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev', {
     skip: (req) =>
@@ -105,7 +101,6 @@ app.use(
 );
 
 // ─── CRITICAL: Pre-load ALL Mongoose models before routes ─────────
-// This prevents "model not registered" errors on Vercel serverless cold starts
 require('./models/Student');
 require('./models/Class');
 require('./models/TeacherVolunteer');
@@ -130,7 +125,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// ─── Health Check (no sensitive data) ────────────────────────────
+// ─── Health Check ────────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
@@ -154,11 +149,25 @@ const server = app.listen(PORT, () => {
   console.log(`🏠 Health: /health`);
   console.log(`📱 QR Attendance: /api/qr-attendance`);
   console.log(`🔐 Allowed origins: ${allowedOrigins.join(', ')}`);
+
+  // FIX: Start attendance reminder job AFTER server is up
+  // Only run in non-Vercel environments (Vercel is stateless/serverless)
+  if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+    const { startAttendanceReminderJob } = require('./controllers/attendanceReminderJob');
+    startAttendanceReminderJob();
+  }
 });
 
 // ─── Graceful Shutdown ─────────────────────────────────────────────
 const shutdown = (signal) => {
   console.log(`\n${signal} received — shutting down gracefully`);
+
+  // Stop reminder job first
+  try {
+    const { stopAttendanceReminderJob } = require('./controllers/attendanceReminderJob');
+    stopAttendanceReminderJob();
+  } catch { /* ignore if not loaded */ }
+
   server.close(() => {
     console.log('✅ HTTP server closed');
     const mongoose = require('mongoose');
@@ -167,7 +176,7 @@ const shutdown = (signal) => {
       process.exit(0);
     });
   });
-  // Force kill after 10s if graceful shutdown hangs
+
   setTimeout(() => {
     console.error('❌ Forced shutdown after timeout');
     process.exit(1);
