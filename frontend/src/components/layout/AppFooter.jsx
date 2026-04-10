@@ -16,8 +16,6 @@ export default function AppFooter() {
       justifyContent: 'space-between',
       gap: 12,
       flexShrink: 0,
-      position: 'sticky',
-      bottom: 0,
       zIndex: 50,
     }}>
       {/* Left — ministry name */}
