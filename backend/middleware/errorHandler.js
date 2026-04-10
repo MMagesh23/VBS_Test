@@ -1,31 +1,37 @@
 const errorHandler = (err, req, res, next) => {
-  let error = { ...err };
-  error.message = err.message;
-
-  // Log error for server debugging (skip in production for 404s)
+  // FIX: Always log to server console with full details for debugging
+  // but never send stack traces or internal details to the client
   if (process.env.NODE_ENV === 'development') {
     console.error('Error:', err);
+  } else {
+    // In production, log structured error without full stack to avoid log flooding
+    console.error(JSON.stringify({
+      message: err.message,
+      path: req.path,
+      method: req.method,
+      code: err.code,
+      name: err.name,
+      timestamp: new Date().toISOString(),
+    }));
   }
 
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {
-    error.message = 'Resource not found';
-    return res.status(404).json({ success: false, message: error.message });
+    return res.status(404).json({ success: false, message: 'Resource not found' });
   }
 
   // Mongoose duplicate key
   if (err.code === 11000) {
     const field = Object.keys(err.keyValue || {})[0] || 'field';
     const value = err.keyValue?.[field];
-    error.message = `Duplicate value: ${field} '${value}' already exists`;
-    return res.status(400).json({ success: false, message: error.message });
+    const message = `${field.charAt(0).toUpperCase() + field.slice(1)} '${value}' already exists`;
+    return res.status(400).json({ success: false, message });
   }
 
   // Mongoose validation error
   if (err.name === 'ValidationError') {
     const messages = Object.values(err.errors).map((e) => e.message);
-    error.message = messages.join(', ');
-    return res.status(400).json({ success: false, message: error.message });
+    return res.status(400).json({ success: false, message: messages.join(', ') });
   }
 
   // JWT errors
@@ -36,14 +42,27 @@ const errorHandler = (err, req, res, next) => {
     return res.status(401).json({ success: false, message: 'Token has expired' });
   }
 
-  res.status(err.statusCode || 500).json({
-    success: false,
-    message: error.message || 'Server Error',
-  });
+  // CORS errors
+  if (err.message?.startsWith('CORS:')) {
+    return res.status(403).json({ success: false, message: err.message });
+  }
+
+  // Mongoose connection errors — don't expose DB details
+  if (err.name === 'MongoNetworkError' || err.name === 'MongooseServerSelectionError') {
+    return res.status(503).json({ success: false, message: 'Service temporarily unavailable' });
+  }
+
+  // FIX: In production, never expose internal error messages
+  const statusCode = err.statusCode || 500;
+  const message =
+    process.env.NODE_ENV === 'production' && statusCode === 500
+      ? 'An internal server error occurred'
+      : err.message || 'Server Error';
+
+  res.status(statusCode).json({ success: false, message });
 };
 
 const notFound = (req, res, next) => {
-  // Silently return 404 for common browser auto-requests — no noisy error logs
   const silentPaths = [
     '/favicon.ico', '/robots.txt', '/sitemap.xml',
     '/apple-touch-icon.png', '/apple-touch-icon-precomposed.png',
