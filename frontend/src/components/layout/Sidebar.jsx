@@ -89,8 +89,6 @@ function DesktopSidebar({ items, theme, user, pendingCount, collapsed, setCollap
         {/* Brand logo — circular crop container */}
         <div style={{
           width: 40, height: 40, borderRadius: 10,
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.15)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0, overflow: 'hidden',
         }}>
