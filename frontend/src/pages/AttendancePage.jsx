@@ -286,9 +286,16 @@ function ExportAttendanceModal({ isOpen, onClose, date, records, classes }) {
       .footer { margin-top: 20px; font-size: 7.5pt; color: #888; border-top: 1px solid #ddd; padding-top: 8px; display: flex; justify-content: space-between; }
       @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
     </style></head><body>
-    <div style="border-bottom:3px solid #1a2f5e;padding-bottom:10px;margin-bottom:14px">
-      <h1>✝ Presence of Jesus Ministry</h1>
-      <h2>Student Attendance — ${formatDisplayDate(date)}</h2>
+    <div style="border-bottom:3px solid #1a2f5e;padding-bottom:10px;margin-bottom:14px; display:flex; align-items:center; gap:10px;">
+      <img 
+        src="/poj-logo.png" 
+        alt="POJ Logo" 
+        style="height:40px; width:auto; object-fit:contain;"
+      />
+      <div>
+        <h1 style="margin:0;">Presence of Jesus Ministry</h1>
+        <h2 style="margin:0;">Student Attendance — ${formatDisplayDate(date)}</h2>
+      </div>
     </div>
 
     <h3 style="font-size:0.82rem;font-weight:700;color:#1a2f5e;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em">Summary</h3>
