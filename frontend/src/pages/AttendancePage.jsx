@@ -642,7 +642,7 @@ function TeacherAttendanceHistory() {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
   const pageSize = 10;
-
+ 
   const { data: classData } = useQuery({
     queryKey: ['my-class-full', user._id],
     queryFn: async () => {
@@ -657,46 +657,57 @@ function TeacherAttendanceHistory() {
       return clsData.data;
     },
   });
-
+ 
   const { data: history, isLoading } = useQuery({
     queryKey: ['teacher-history', classData?._id],
     queryFn: () => attendanceAPI.getStudentAttendance({ classId: classData._id }).then(r => r.data?.data || []),
     enabled: !!classData?._id,
   });
-
+ 
   if (isLoading) return <div className="loading-center"><div className="spinner" /></div>;
-
-  const records = history || [];
-  const paged = records.slice((page - 1) * pageSize, page * pageSize);
-  const pages = Math.ceil(records.length / pageSize);
-
-  if (records.length === 0) return (
+ 
+  // FIX 3: Sort ASC by date so Day 1 = earliest date, Day N = latest date
+  const sortedAsc = [...(history || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const totalRecords = sortedAsc.length;
+ 
+  // Build a map: record _id → day number (1-based, chronological)
+  const dayNumberMap = {};
+  sortedAsc.forEach((rec, idx) => {
+    dayNumberMap[rec._id] = idx + 1;
+  });
+ 
+  // For display: show newest first (DESC) but keep correct day numbers
+  const sortedDesc = [...sortedAsc].reverse();
+  const totalPages = Math.ceil(sortedDesc.length / pageSize);
+  const paged = sortedDesc.slice((page - 1) * pageSize, page * pageSize);
+ 
+  if (totalRecords === 0) return (
     <div className="card" style={{ textAlign: 'center', padding: 48 }}>
       <Calendar size={36} style={{ color: 'var(--color-text-muted)', marginBottom: 12 }} />
       <h3>No attendance records yet</h3>
       <p style={{ color: 'var(--color-text-secondary)', marginTop: 6 }}>Records appear after you submit attendance.</p>
     </div>
   );
-
+ 
   return (
     <div>
       <div style={{ marginBottom: 14, fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-        {records.length} records for {classData?.name}
+        {totalRecords} records for {classData?.name}
       </div>
-      {/* Mobile cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {paged.map((rec, idx) => {
+        {paged.map(rec => {
           const present = rec.records?.filter(r => r.status === 'present').length || 0;
           const absent = rec.records?.filter(r => r.status === 'absent').length || 0;
           const total = present + absent;
           const rate = total > 0 ? Math.round((present / total) * 100) : 0;
-          const globalIdx = (page - 1) * pageSize + idx;
+          // FIX 3: Use the chronological day number from our map
+          const dayNum = dayNumberMap[rec._id];
           return (
             <div key={rec._id} className="card" style={{ padding: '14px 16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <span className="badge badge-navy">Day {globalIdx + 1}</span>
+                    <span className="badge badge-navy">Day {dayNum}</span>
                     <span style={{ fontWeight: 700, fontSize: '0.875rem' }}>{formatDisplayDate(rec.date)}</span>
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
@@ -719,13 +730,13 @@ function TeacherAttendanceHistory() {
           );
         })}
       </div>
-      {pages > 1 && (
+      {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 16 }}>
           <button className="btn btn-secondary btn-sm" onClick={() => setPage(p => p - 1)} disabled={page <= 1}><ChevronLeft size={14} /></button>
-          {Array.from({ length: pages }, (_, i) => i + 1).map(p => (
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
             <button key={p} className={`btn btn-sm ${p === page ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setPage(p)} style={{ minWidth: 32, justifyContent: 'center' }}>{p}</button>
           ))}
-          <button className="btn btn-secondary btn-sm" onClick={() => setPage(p => p + 1)} disabled={page >= pages}><ChevronRight size={14} /></button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages}><ChevronRight size={14} /></button>
         </div>
       )}
     </div>
