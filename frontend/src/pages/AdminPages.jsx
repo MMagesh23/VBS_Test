@@ -488,7 +488,16 @@ export function SettingsPage() {
 
   const openCreate = () => {
     setEditSettings(null);
-    setForm({ year: new Date().getFullYear(), vbsTitle: '', tagline: '', startDate: '', endDate: '', timeWindowStart: '08:00', timeWindowEnd: '10:00', mainColor: '#1a2f5e', accentColor: '#c8922a' });
+    setForm({
+      year: new Date().getFullYear(),
+      vbsTitle: '',
+      vbsVerseRef: '',
+      vbsVerse: '',
+      tagline: '',
+      startDate: '', endDate: '',
+      timeWindowStart: '08:00', timeWindowEnd: '10:00',
+      mainColor: '#1a2f5e', accentColor: '#c8922a',
+    });
     setDailyThemes([]);
     setPrevPhotos([]);
     setYoutubeVideos([]);
@@ -499,7 +508,10 @@ export function SettingsPage() {
   const openEdit = s => {
     setEditSettings(s);
     setForm({
-      year: s.year, vbsTitle: s.vbsTitle || '', tagline: s.tagline || '',
+      year: s.year, vbsTitle: s.vbsTitle || '',
+      vbsVerseRef: s.vbsVerseRef || '',
+      vbsVerse: s.vbsVerse || '',
+      tagline: s.tagline || '',
       startDate: s.dates?.startDate?.slice(0, 10) || '',
       endDate: s.dates?.endDate?.slice(0, 10) || '',
       timeWindowStart: s.timeWindow?.studentAttendance?.startTime || '08:00',
@@ -521,7 +533,10 @@ export function SettingsPage() {
     if (!form.startDate || !form.endDate) { toast.error('Start and end dates required'); return; }
     if (new Date(form.endDate) < new Date(form.startDate)) { toast.error('End date must be after start date'); return; }
     const data = {
-      year: Number(form.year), vbsTitle: form.vbsTitle, tagline: form.tagline,
+      year: Number(form.year), vbsTitle: form.vbsTitle,
+      vbsVerseRef: form.vbsVerseRef || '',
+      vbsVerse: form.vbsVerse || '',
+      tagline: form.tagline,
       dates: { startDate: form.startDate, endDate: form.endDate },
       timeWindow: {
         studentAttendance: { startTime: form.timeWindowStart, endTime: form.timeWindowEnd },
@@ -712,6 +727,15 @@ export function SettingsPage() {
                     <div className="form-group" style={{ gridColumn: '1/-1' }}>
                       <label className="form-label">VBS Title <span className="required">*</span></label>
                       <input className="form-input" value={form.vbsTitle || ''} onChange={e => setForm({ ...form, vbsTitle: e.target.value })} placeholder="e.g., Walking with Jesus 2026" />
+                    </div>
+                    {/* NEW: VBS Main Verse */}
+                    <div className="form-group">
+                      <label className="form-label">VBS Theme Verse Reference <span className="optional">(optional)</span></label>
+                      <input className="form-input" value={form.vbsVerseRef || ''} onChange={e => setForm({ ...form, vbsVerseRef: e.target.value })} placeholder="e.g., John 3:16" />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                      <label className="form-label">VBS Theme Verse Text <span className="optional">(optional)</span></label>
+                      <textarea className="form-textarea" rows={2} value={form.vbsVerse || ''} onChange={e => setForm({ ...form, vbsVerse: e.target.value })} placeholder="For God so loved the world..." />
                     </div>
                     <div className="form-group" style={{ gridColumn: '1/-1' }}>
                       <label className="form-label">Tagline <span className="optional">(optional)</span></label>
