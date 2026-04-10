@@ -18,6 +18,14 @@ const getISTTimeString = () => {
   });
 };
 
+// FIX: Safe token cleaning — strip prefix and validate format
+const cleanToken = (raw) => {
+  const token = raw.startsWith('QR_ATTENDANCE:') ? raw.slice(14) : raw;
+  // Validate token is a 64-char hex string (crypto.randomBytes(32).toString('hex'))
+  if (!/^[0-9a-f]{64}$/.test(token)) return null;
+  return token;
+};
+
 // @desc    Create a new QR session (admin generates QR code)
 // @route   POST /api/qr-attendance/sessions
 // @access  Admin
@@ -28,6 +36,11 @@ const createQRSession = async (req, res, next) => {
     if (!date) {
       return res.status(400).json({ success: false, message: 'Date is required' });
     }
+    // FIX: Validate expiryMinutes range
+    const expiry = parseInt(expiryMinutes, 10);
+    if (isNaN(expiry) || expiry < 1 || expiry > 480) {
+      return res.status(400).json({ success: false, message: 'expiryMinutes must be between 1 and 480' });
+    }
 
     const settings = await Settings.findOne({ isActive: true });
     if (!settings) {
@@ -36,7 +49,6 @@ const createQRSession = async (req, res, next) => {
 
     const attendanceDate = normalizeToISTMidnight(date);
 
-    // Validate date is within VBS schedule
     const startDate = normalizeToISTMidnight(settings.dates.startDate);
     const endDate = new Date(normalizeToISTMidnight(settings.dates.endDate).getTime() + 24 * 60 * 60 * 1000 - 1);
     if (attendanceDate < startDate || attendanceDate > endDate) {
@@ -47,7 +59,12 @@ const createQRSession = async (req, res, next) => {
     }
 
     const token = generateToken();
-    const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
+    const expiresAt = new Date(Date.now() + expiry * 60 * 1000);
+
+    // FIX: Sanitize label to prevent stored XSS
+    const safeLabel = label
+      ? label.trim().replace(/[<>"'&]/g, '').slice(0, 100)
+      : `Attendance — ${attendanceDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })}`;
 
     const session = await QRSession.create({
       token,
@@ -55,7 +72,7 @@ const createQRSession = async (req, res, next) => {
       vbsYear: settings.year,
       createdBy: req.user._id,
       expiresAt,
-      label: label?.trim() || `Attendance — ${attendanceDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })}`,
+      label: safeLabel,
       isActive: true,
     });
 
@@ -69,10 +86,9 @@ const createQRSession = async (req, res, next) => {
         vbsYear: session.vbsYear,
         label: session.label,
         expiresAt: session.expiresAt,
-        expiryMinutes,
+        expiryMinutes: expiry,
         isActive: session.isActive,
         scansCount: 0,
-        // The QR payload — teachers scan this URL
         qrPayload: `QR_ATTENDANCE:${token}`,
       },
     });
@@ -158,28 +174,28 @@ const deactivateQRSession = async (req, res, next) => {
 // @access  Teacher (must be logged in)
 const scanQRCode = async (req, res, next) => {
   try {
-    const { token } = req.body;
+    const { token: rawToken } = req.body;
 
-    if (!token) {
+    if (!rawToken) {
       return res.status(400).json({ success: false, message: 'QR token is required' });
     }
 
-    // Clean token — accept both raw token and "QR_ATTENDANCE:token" format
-    const cleanToken = token.startsWith('QR_ATTENDANCE:') ? token.slice(14) : token;
+    // FIX: Validate and clean the token
+    const token = cleanToken(rawToken);
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Invalid QR code format' });
+    }
 
-    // Find the session
-    const session = await QRSession.findOne({ token: cleanToken });
+    const session = await QRSession.findOne({ token });
 
     if (!session) {
       return res.status(404).json({ success: false, message: 'Invalid QR code. Please ask admin for a new one.' });
     }
 
-    // Check if session is active
     if (!session.isActive) {
       return res.status(400).json({ success: false, message: 'This QR session has been deactivated by the admin.' });
     }
 
-    // Check expiry
     const now = new Date();
     if (now > session.expiresAt) {
       return res.status(400).json({
@@ -189,7 +205,6 @@ const scanQRCode = async (req, res, next) => {
       });
     }
 
-    // Find the teacher profile linked to this user
     const teacher = await Teacher.findOne({ user: req.user._id });
     if (!teacher) {
       return res.status(403).json({
@@ -198,7 +213,6 @@ const scanQRCode = async (req, res, next) => {
       });
     }
 
-    // Check if this teacher already scanned this session
     const alreadyScanned = session.scans.some(
       (s) => s.teacher?.toString() === teacher._id.toString()
     );
@@ -210,12 +224,10 @@ const scanQRCode = async (req, res, next) => {
       });
     }
 
-    // Determine status: if scanned within 30 min of session creation, present; else late
     const sessionAgeMin = (now - session.createdAt) / (1000 * 60);
     const status = sessionAgeMin <= 30 ? 'present' : 'late';
     const arrivalTime = getISTTimeString();
 
-    // Add scan record to session
     session.scans.push({
       teacher: teacher._id,
       teacherName: teacher.name,
@@ -225,14 +237,14 @@ const scanQRCode = async (req, res, next) => {
     });
     await session.save();
 
-    // Create or update TeacherAttendance record
     const existing = await TeacherAttendance.findOne({
       date: session.date,
       teacher: teacher._id,
     });
 
     if (existing) {
-      // Update existing record
+      // FIX: Capture previousStatus BEFORE mutation (was a bug in original)
+      const previousStatus = existing.status;
       existing.status = status;
       existing.arrivalTime = arrivalTime;
       existing.remarks = `Marked via QR scan at ${arrivalTime}`;
@@ -244,7 +256,7 @@ const scanQRCode = async (req, res, next) => {
         changes: [{
           entityId: teacher._id.toString(),
           entityName: teacher.name,
-          previousStatus: existing.status,
+          previousStatus, // ← correctly captured before mutation
           newStatus: status,
         }],
         reason: 'QR code scan',
@@ -281,7 +293,7 @@ const scanQRCode = async (req, res, next) => {
   }
 };
 
-// @desc    Admin manually scans on behalf of teacher (admin panel scan)
+// @desc    Admin manually marks on behalf of teacher
 // @route   POST /api/qr-attendance/admin-scan
 // @access  Admin
 const adminScanForTeacher = async (req, res, next) => {
@@ -290,6 +302,11 @@ const adminScanForTeacher = async (req, res, next) => {
 
     if (!sessionId || !teacherId) {
       return res.status(400).json({ success: false, message: 'sessionId and teacherId are required' });
+    }
+
+    // FIX: Validate status value
+    if (!['present', 'late', 'absent', 'leave'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
     }
 
     const session = await QRSession.findById(sessionId);
@@ -305,11 +322,9 @@ const adminScanForTeacher = async (req, res, next) => {
     const arrivalTime = getISTTimeString();
     const now = new Date();
 
-    // Remove existing scan if any
     session.scans = session.scans.filter(
       (s) => s.teacher?.toString() !== teacher._id.toString()
     );
-
     session.scans.push({
       teacher: teacher._id,
       teacherName: teacher.name,
@@ -319,13 +334,14 @@ const adminScanForTeacher = async (req, res, next) => {
     });
     await session.save();
 
-    // Upsert TeacherAttendance
     const existing = await TeacherAttendance.findOne({
       date: session.date,
       teacher: teacher._id,
     });
 
     if (existing) {
+      // FIX: Capture previousStatus BEFORE mutation (was a bug in original adminScanForTeacher)
+      const previousStatus = existing.status;
       existing.status = status;
       existing.arrivalTime = arrivalTime;
       existing.remarks = `Manually marked by admin via QR session`;
@@ -337,7 +353,7 @@ const adminScanForTeacher = async (req, res, next) => {
         changes: [{
           entityId: teacher._id.toString(),
           entityName: teacher.name,
-          previousStatus: existing.status,
+          previousStatus, // ← correctly captured before mutation
           newStatus: status,
         }],
         reason: 'Admin manual mark via QR session',
@@ -366,16 +382,18 @@ const adminScanForTeacher = async (req, res, next) => {
   }
 };
 
-// @desc    Validate QR token (used by teacher scan page before submitting)
+// @desc    Validate QR token
 // @route   GET /api/qr-attendance/validate/:token
 // @access  Teacher
 const validateToken = async (req, res, next) => {
   try {
-    const cleanToken = req.params.token.startsWith('QR_ATTENDANCE:')
-      ? req.params.token.slice(14)
-      : req.params.token;
+    // FIX: Validate token format before querying DB
+    const token = cleanToken(req.params.token);
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Invalid QR code format' });
+    }
 
-    const session = await QRSession.findOne({ token: cleanToken });
+    const session = await QRSession.findOne({ token });
 
     if (!session) {
       return res.status(404).json({ success: false, message: 'Invalid QR code' });
@@ -385,7 +403,6 @@ const validateToken = async (req, res, next) => {
     const isExpired = now > session.expiresAt;
     const remainingMs = Math.max(0, session.expiresAt - now);
 
-    // Check if teacher already scanned
     let alreadyScanned = false;
     if (req.user?.role === 'teacher') {
       const teacher = await Teacher.findOne({ user: req.user._id });
