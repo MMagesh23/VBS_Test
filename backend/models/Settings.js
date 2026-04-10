@@ -27,6 +27,18 @@ const settingsSchema = new mongoose.Schema(
       trim: true,
       maxlength: [200, 'Title cannot exceed 200 characters'],
     },
+    // Main verse for the VBS year (e.g. "John 3:16")
+    vbsVerseRef: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'Verse reference cannot exceed 100 characters'],
+    },
+    // Full verse text
+    vbsVerse: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Verse cannot exceed 500 characters'],
+    },
     tagline: {
       type: String,
       trim: true,
