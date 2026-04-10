@@ -87,7 +87,9 @@ const volunteerSchema = new mongoose.Schema(
 
 volunteerSchema.index({ name: 'text' });
 
-const Teacher = mongoose.model('Teacher', teacherSchema);
-const Volunteer = mongoose.model('Volunteer', volunteerSchema);
+// FIX: Use mongoose.models cache to prevent "Cannot overwrite model" error
+// on Vercel serverless hot-reload (same pattern as Attendance.js / Staging.js)
+const Teacher = mongoose.models.Teacher || mongoose.model('Teacher', teacherSchema);
+const Volunteer = mongoose.models.Volunteer || mongoose.model('Volunteer', volunteerSchema);
 
 module.exports = { Teacher, Volunteer };
