@@ -14,6 +14,13 @@ const photoSchema = new mongoose.Schema({
   year: { type: Number },
 });
 
+// FIX: Added youtubeVideos schema (was used in frontend but missing from model)
+const youtubeVideoSchema = new mongoose.Schema({
+  url: { type: String, required: true, trim: true },
+  title: { type: String, trim: true },
+  year: { type: Number },
+});
+
 const settingsSchema = new mongoose.Schema(
   {
     year: {
@@ -27,13 +34,11 @@ const settingsSchema = new mongoose.Schema(
       trim: true,
       maxlength: [200, 'Title cannot exceed 200 characters'],
     },
-    // Main verse for the VBS year (e.g. "John 3:16")
     vbsVerseRef: {
       type: String,
       trim: true,
       maxlength: [100, 'Verse reference cannot exceed 100 characters'],
     },
-    // Full verse text
     vbsVerse: {
       type: String,
       trim: true,
@@ -65,6 +70,8 @@ const settingsSchema = new mongoose.Schema(
     },
     dailyThemes: [dailyThemeSchema],
     previousYearPhotos: [photoSchema],
+    // FIX: Added missing youtubeVideos field
+    youtubeVideos: [youtubeVideoSchema],
     isActive: {
       type: Boolean,
       default: false,
