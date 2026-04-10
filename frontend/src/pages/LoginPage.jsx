@@ -12,10 +12,12 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Guard against double-submit / re-render loops
   const submittingRef = useRef(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Prevent re-entry if already in-flight
     if (submittingRef.current || loading) return;
     submittingRef.current = true;
     setError('');
@@ -23,8 +25,13 @@ export default function LoginPage() {
     try {
       const user = await login(form.userID.trim(), form.password);
       toast.success(`Welcome back, ${user.name}!`);
-      // FIX 2: Always go to dashboard — change password is now optional
-      navigate('/dashboard', { replace: true });
+      // Use replace:true so the login page is removed from history stack,
+      // preventing the back-button loop that triggered infinite redirects.
+      if (user.mustChangePassword) {
+        navigate('/change-password', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please try again.';
       toast.error(msg);
@@ -54,8 +61,12 @@ export default function LoginPage() {
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
         style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: 30 }}>
-          <div style={{ width: 70, height: 70, borderRadius: 20, background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-            <Shield size={32} color="white" />
+          <div style={{ width: 100, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 5px' }}>
+            <img 
+              src="/poj-logo.png"   
+              alt="POJM"
+              style={{ width: 100, height: 100, objectFit: 'contain' }}
+            />
           </div>
           <h1 style={{ color: 'white', fontSize: '1.5rem', fontWeight: 800 }}>VBS Management</h1>
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.845rem', marginTop: 4 }}>Presence of Jesus Ministry</p>
@@ -71,6 +82,7 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* Use onSubmit on form — avoids duplicate calls from button clicks */}
           <form onSubmit={handleSubmit} autoComplete="on">
             <div className="form-group">
               <label className="form-label">Username <span className="required">*</span></label>
