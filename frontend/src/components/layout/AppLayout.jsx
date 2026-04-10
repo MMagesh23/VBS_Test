@@ -46,11 +46,15 @@ export default function AppLayout() {
   return (
     <div className="app-layout">
       <Sidebar pendingCount={pendingCount} />
-      <div className="main-content">
+      {/* main-content: flex column, full height, no overflow on container */}
+      <div className="main-content" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        {/* Header: sticky top */}
         <Header title={title} />
-        <div className="page-content">
+        {/* Page content: scrollable middle */}
+        <div className="page-content" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           <Outlet />
         </div>
+        {/* Footer: sticky bottom */}
         <AppFooter />
       </div>
     </div>
