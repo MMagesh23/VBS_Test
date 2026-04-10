@@ -5,17 +5,13 @@ const BASE_URL = process.env.REACT_APP_API_URL || '/api';
 const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 30000, // FIX: Increased to 30s for large report generation
-  withCredentials: true, // FIX: Required for future httpOnly cookie migration
+  timeout: 30000,
+  withCredentials: true,
 });
 
 // ─── Request interceptor: attach access token ──────────────────────
 api.interceptors.request.use(
   (config) => {
-    // NOTE: localStorage is vulnerable to XSS. For a future hardening step,
-    // migrate to httpOnly cookies (requires backend Set-Cookie changes).
-    // Current token storage is acceptable for this internal staff app given
-    // it's deployed behind authentication and CSP headers are set.
     const token = localStorage.getItem('accessToken');
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
@@ -35,11 +31,9 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// FIX: Helper to clear auth state and redirect
 const clearAuthAndRedirect = () => {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
-  // FIX: Use replace to prevent back-navigation to authenticated pages
   if (!window.location.pathname.includes('/login')) {
     window.location.replace('/login');
   }
@@ -50,7 +44,6 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // FIX: Handle network errors (no response) distinctly from server errors
     if (!error.response) {
       if (error.code === 'ECONNABORTED') {
         return Promise.reject(
@@ -96,7 +89,7 @@ api.interceptors.response.use(
         const { data } = await axios.post(
           `${BASE_URL}/auth/refresh`,
           { refreshToken },
-          { timeout: 10000 } // FIX: Shorter timeout for refresh
+          { timeout: 10000 }
         );
         const newAccessToken = data.data.accessToken;
         const newRefreshToken = data.data.refreshToken;
@@ -226,6 +219,10 @@ export const reportsAPI = {
   getStudent: (studentId) => api.get(`/reports/student/${studentId}`),
   getTeacher: (teacherId) => api.get(`/reports/teacher/${teacherId}`),
   getVolunteer: (volunteerId) => api.get(`/reports/volunteer/${volunteerId}`),
+  // FIX: Added missing village and category report endpoints
+  getVillageList: (params) => api.get('/reports/villages', { params }),
+  getVillage: (params) => api.get('/reports/village', { params }),
+  getCategory: (category, params) => api.get(`/reports/category/${category}`, { params }),
 };
 
 // ─── Settings ─────────────────────────────────────────────────────
