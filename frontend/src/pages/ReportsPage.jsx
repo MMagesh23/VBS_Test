@@ -907,18 +907,73 @@ function StudentReport({ vbsYear }) {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+
   const { data: students } = useQuery({
     queryKey: ['students-search', search, vbsYear],
     queryFn: () => studentsAPI.getAll({ search, limit: 20, vbsYear }),
     select: d => d.data?.data || [],
     enabled: search.length >= 2 && !!vbsYear,
   });
+
   const { data, isLoading } = useQuery({
     queryKey: ['report-student', selectedId, vbsYear],
     queryFn: () => reportsAPI.getStudent(selectedId),
     enabled: !!selectedId && !!vbsYear,
     select: d => d.data?.data,
   });
+
+  // Enhanced print with all student details
+  const handlePrint = () => {
+    if (!data) return;
+    const { student, attendance } = data;
+    const sum = mkSummary([
+      { l: 'Student ID', v: student?.studentId || '—' },
+      { l: 'Grade', v: student?.grade },
+      { l: 'Category', v: student?.category },
+      { l: 'Present', v: attendance?.present },
+      { l: 'Absent', v: attendance?.absent },
+      { l: 'Rate', v: `${attendance?.rate ?? 0}%` },
+    ]);
+
+    const profileSection = `
+      <div class="section-head">Student Profile</div>
+      <table>
+        <tbody>
+          <tr><td style="font-weight:700;width:180px">Student ID</td><td style="font-family:monospace">${student?.studentId || '—'}</td><td style="font-weight:700;width:180px">Name</td><td>${student?.name || '—'}</td></tr>
+          <tr><td style="font-weight:700">Grade</td><td>${student?.grade || '—'}</td><td style="font-weight:700">Category</td><td>${student?.category || '—'}</td></tr>
+          <tr><td style="font-weight:700">Gender</td><td style="text-transform:capitalize">${student?.gender || '—'}</td><td style="font-weight:700">Religion</td><td>${student?.religion || '—'}${student?.christianDenomination ? ` (${student.christianDenomination})` : ''}</td></tr>
+          <tr><td style="font-weight:700">Parent / Guardian</td><td>${student?.parentName || '—'}</td><td style="font-weight:700">Village</td><td>${student?.village || '—'}</td></tr>
+          <tr><td style="font-weight:700">Contact Number</td><td style="font-family:monospace">${student?.contactNumber || '—'}</td><td style="font-weight:700">WhatsApp</td><td style="font-family:monospace">${student?.whatsappNumber || student?.contactNumber || '—'}</td></tr>
+          <tr><td style="font-weight:700">School</td><td colspan="3">${student?.schoolName || '—'}</td></tr>
+          <tr><td style="font-weight:700">Class Assigned</td><td>${student?.classAssigned?.name || 'Unassigned'}</td><td style="font-weight:700">VBS Year</td><td>${student?.vbsYear || '—'}</td></tr>
+        </tbody>
+      </table>`;
+
+    const historyRows = (attendance?.history || []).map((h, i) =>
+      `<tr style="background:${i%2===0?'#f9fafb':'white'}">
+        <td>${fmtDate(h.date)}</td>
+        <td><span style="padding:2px 8px;border-radius:4px;font-size:7.5pt;font-weight:700;background:${h.status==='present'?'#dcfce7':'#fee2e2'};color:${h.status==='present'?'#15803d':'#b91c1c'}">${h.status === 'present' ? '✓ Present' : '✗ Absent'}</span></td>
+        <td>${h.isModified ? '<span style="color:#c2410c;font-weight:700">⚠ Modified</span>' : '<span style="color:#16a34a">✓ Original</span>'}</td>
+      </tr>`
+    ).join('');
+
+    const body = `${profileSection}
+      <div class="section-head">Attendance Summary</div>
+      <table>
+        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Days Present</td><td style="font-weight:700;color:#16a34a">${attendance?.present || 0}</td></tr>
+          <tr><td>Days Absent</td><td style="font-weight:700;color:#dc2626">${attendance?.absent || 0}</td></tr>
+          <tr><td>Total Days</td><td style="font-weight:700">${attendance?.total || 0}</td></tr>
+          <tr><td>Attendance Rate</td><td style="font-weight:800;color:${(attendance?.rate||0)>=80?'#16a34a':(attendance?.rate||0)>=60?'#d97706':'#dc2626'}">${attendance?.rate ?? 0}%</td></tr>
+        </tbody>
+      </table>
+      <div class="section-head">Day-by-Day History</div>
+      ${mkTable(['Date', 'Status', 'Record Type'], historyRows)}`;
+
+    printPage(`Student Report — ${student?.name}`, body, sum, vbsYear);
+  };
+
   if (!selectedId) return (
     <div>
       <div style={{ marginBottom: 16, position: 'relative', display: 'inline-block' }}>
@@ -937,40 +992,64 @@ function StudentReport({ vbsYear }) {
           </div>
         )}
       </div>
-      <Alert type="info">Type at least 2 characters to search.</Alert>
+      <Alert type="info">Type at least 2 characters to search for a student.</Alert>
     </div>
   );
+
   if (isLoading) return <LoadingPage />;
   if (!data) return <Alert type="warning">No data for this student.</Alert>;
+
   const { student, attendance } = data;
-  const handlePrint = () => {
-    const sum = mkSummary([{ l: 'Grade', v: student?.grade }, { l: 'Category', v: student?.category }, { l: 'Present', v: attendance?.present }, { l: 'Rate', v: `${attendance?.rate ?? 0}%` }]);
-    const rows = (attendance?.history || []).map(h => `<tr><td>${fmtDate(h.date)}</td><td>${h.status}</td><td>${h.isModified ? 'Modified' : '—'}</td></tr>`).join('');
-    printPage(`Student Report — ${student?.name}`, mkTable(['Date', 'Status', 'Record'], rows), sum, vbsYear);
-  };
+
   return (
     <div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         <button className="btn btn-secondary btn-sm" onClick={() => { setSelectedId(''); setSearch(''); }}>← Back</button>
       </div>
-      <div className="card" style={{ marginBottom: 16, padding: '14px 18px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+
+      {/* Profile Card */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
           <div>
-            <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>{student?.name} <span className="code" style={{ fontSize: '0.8rem' }}>{student?.studentId}</span></div>
+            <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>
+              {student?.name}
+              <span className="code" style={{ fontSize: '0.8rem', marginLeft: 10 }}>{student?.studentId}</span>
+            </div>
             <div style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', marginTop: 4 }}>
-              Grade {student?.grade} · <span className={`badge cat-${student?.category}`}>{student?.category}</span> · {student?.gender} · {student?.village || '—'}
+              Grade {student?.grade} · <span className={`badge cat-${student?.category}`}>{student?.category}</span> · {student?.gender}
               {student?.classAssigned && <> · Class: <strong>{student.classAssigned.name}</strong></>}
             </div>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={handlePrint}><Printer size={13} /> Print</button>
+          <button className="btn btn-secondary btn-sm" onClick={handlePrint}><Printer size={13} /> Print Full Report</button>
+        </div>
+        <div className="card-body">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+            {[
+              { label: 'Religion', value: `${student?.religion || '—'}${student?.christianDenomination ? ` · ${student.christianDenomination}` : ''}` },
+              { label: 'Parent / Guardian', value: student?.parentName || '—' },
+              { label: 'Village', value: student?.village || '—' },
+              { label: 'Contact', value: student?.contactNumber || '—', mono: true },
+              { label: 'WhatsApp', value: student?.whatsappNumber || student?.contactNumber || '—', mono: true },
+              { label: 'School', value: student?.schoolName || '—' },
+            ].map(f => (
+              <div key={f.label}>
+                <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 2 }}>{f.label}</div>
+                <div style={{ fontWeight: 500, fontSize: '0.875rem', fontFamily: f.mono ? 'var(--font-mono)' : undefined }}>{f.value}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Attendance Summary */}
       <StatRow items={[
         { label: 'Present', value: attendance?.present, color: '#16a34a' },
         { label: 'Absent', value: attendance?.absent, color: '#dc2626' },
-        { label: 'Total', value: attendance?.total, color: '#3b82f6' },
-        { label: 'Rate', value: `${attendance?.rate ?? 0}%`, color: '#8b5cf6' },
+        { label: 'Total Days', value: attendance?.total, color: '#3b82f6' },
+        { label: 'Rate', value: `${attendance?.rate ?? 0}%`, color: attendance?.rate >= 80 ? '#16a34a' : attendance?.rate >= 60 ? '#d97706' : '#dc2626' },
       ]} />
+
+      {/* History */}
       <SectionCard title="📅 Attendance History">
         <table>
           <thead><tr><th>Date</th><th>Status</th><th>Record</th></tr></thead>
@@ -994,31 +1073,75 @@ function StudentReport({ vbsYear }) {
 function VillageReport({ vbsYear }) {
   const [village, setVillage] = useState('');
   const [queried, setQueried] = useState('');
+
   const { data: villageList } = useQuery({
     queryKey: ['village-list', vbsYear],
     queryFn: () => api.get('/reports/villages', { params: { vbsYear } }).then(r => r.data?.data || []),
     enabled: !!vbsYear,
   });
+
   const { data, isLoading } = useQuery({
     queryKey: ['report-village', queried, vbsYear],
     queryFn: () => api.get('/reports/village', { params: { village: queried, vbsYear } }).then(r => r.data?.data),
     enabled: !!queried && !!vbsYear,
   });
+
+  // Full village PDF
+  const handlePrint = () => {
+    if (!data) return;
+    const sum = mkSummary([
+      { l: 'Village', v: queried },
+      { l: 'Total Students', v: data.totalStudents },
+      { l: 'Attendance Rate', v: `${data.stats?.attendance?.rate ?? 0}%` },
+      { l: 'Present', v: data.stats?.attendance?.present ?? 0 },
+    ]);
+    const rows = (data.students || []).map(s =>
+      `<tr><td>${s.studentId || '—'}</td><td>${s.name}</td><td>${s.grade}</td><td>${s.category}</td><td style="text-transform:capitalize">${s.gender}</td><td>${s.contactNumber || '—'}</td><td>${s.parentName || '—'}</td><td>${s.classAssigned?.name || '—'}</td><td>${s.attendance?.present ?? 0}</td><td>${s.attendance?.total ?? 0}</td><td style="font-weight:700;color:${(s.attendance?.rate||0)>=80?'#16a34a':(s.attendance?.rate||0)>=60?'#d97706':'#dc2626'}">${s.attendance?.rate ?? 0}%</td></tr>`
+    ).join('');
+    printPage(`Village Report — ${queried}`, mkTable(['Student ID', 'Name', 'Grade', 'Category', 'Gender', 'Contact', 'Parent', 'Class', 'Present', 'Total', 'Rate'], rows), sum, vbsYear);
+  };
+
   if (!queried) return (
     <div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-end' }}>
         <div>
           <label className="form-label">Select Village</label>
-          <select className="form-select" style={{ width: 260 }} value={village} onChange={e => setVillage(e.target.value)}>
+          <select className="form-select" style={{ width: 280 }} value={village} onChange={e => setVillage(e.target.value)}>
             <option value="">Choose a village…</option>
             {(villageList || []).map(v => <option key={v.village || v._id} value={v.village || v._id}>{v.village || v._id} ({v.count} students)</option>)}
           </select>
         </div>
-        <button className="btn btn-primary" onClick={() => setQueried(village)} disabled={!village}>View</button>
+        <button className="btn btn-primary" onClick={() => setQueried(village)} disabled={!village}>View Report</button>
       </div>
-      <Alert type="info">Select a village to view its report.</Alert>
+      {/* Quick summary of all villages */}
+      {(villageList || []).length > 0 && (
+        <div className="card">
+          <div className="card-header"><span className="card-title">📍 All Villages ({villageList.length})</span></div>
+          <div className="table-container">
+            <table>
+              <thead><tr><th>#</th><th>Village</th><th>Students</th><th>Actions</th></tr></thead>
+              <tbody>
+                {villageList.map((v, i) => (
+                  <tr key={v.village || v._id}>
+                    <td style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>{i + 1}</td>
+                    <td style={{ fontWeight: 600 }}>{v.village || v._id}</td>
+                    <td><span className="badge badge-blue">{v.count}</span></td>
+                    <td>
+                      <button className="btn btn-secondary btn-sm" onClick={() => { setVillage(v.village || v._id); setQueried(v.village || v._id); }}>
+                        View →
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      <Alert type="info" style={{ marginTop: 12 }}>Select a village from the dropdown or the list above.</Alert>
     </div>
   );
+
   if (isLoading) return <LoadingPage />;
   if (!data) return (
     <div>
@@ -1028,19 +1151,23 @@ function VillageReport({ vbsYear }) {
       <Alert type="warning">No data for {queried}.</Alert>
     </div>
   );
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
-        <button className="btn btn-secondary btn-sm" onClick={() => { setQueried(''); setVillage(''); }}>← Back</button>
-        <span style={{ fontWeight: 700, fontSize: '1rem' }}>📍 {queried}</span>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-secondary btn-sm" onClick={() => { setQueried(''); setVillage(''); }}>← All Villages</button>
+        <span style={{ fontWeight: 800, fontSize: '1rem' }}>📍 {queried}</span>
+        <button className="btn btn-secondary btn-sm" onClick={handlePrint}><Download size={13} /> Export PDF</button>
       </div>
       <StatRow items={[
         { label: 'Total Students', value: data.totalStudents, color: '#3b82f6' },
+        { label: 'Present', value: data.stats?.attendance?.present, color: '#16a34a' },
+        { label: 'Total Records', value: data.stats?.attendance?.total, color: '#8b5cf6' },
         { label: 'Attendance Rate', value: `${data.stats?.attendance?.rate ?? 0}%`, color: '#10b981' },
       ]} />
       <SectionCard title={`👥 Students from ${queried}`}>
         <table>
-          <thead><tr><th>Student ID</th><th>Name</th><th>Grade</th><th>Category</th><th>Gender</th><th>Class</th><th>Rate</th></tr></thead>
+          <thead><tr><th>Student ID</th><th>Name</th><th>Grade</th><th>Category</th><th>Gender</th><th>Contact</th><th>Parent</th><th>Class</th><th>Present</th><th>Rate</th></tr></thead>
           <tbody>
             {(data.students || []).map(s => (
               <tr key={s._id}>
@@ -1049,7 +1176,10 @@ function VillageReport({ vbsYear }) {
                 <td>{s.grade}</td>
                 <td><CategoryBadge category={s.category} /></td>
                 <td style={{ textTransform: 'capitalize', fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>{s.gender}</td>
+                <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>{s.contactNumber || '—'}</td>
+                <td style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>{s.parentName || '—'}</td>
                 <td>{s.classAssigned?.name ? <span className="badge badge-navy">{s.classAssigned.name}</span> : <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>}</td>
+                <td><span style={{ color: '#16a34a', fontWeight: 700 }}>{s.attendance?.present ?? 0}</span></td>
                 <td><RateBar rate={s.attendance?.rate ?? 0} /></td>
               </tr>
             ))}
@@ -1116,25 +1246,93 @@ function CategoryReport({ vbsYear }) {
     queryFn: () => api.get(`/reports/category/${category}`, { params: { vbsYear } }).then(r => r.data?.data),
     enabled: !!category && !!vbsYear,
   });
+
   const CATS = ['Beginner', 'Primary', 'Junior', 'Inter'];
+  const GRADE_RANGES = { Beginner: 'PreKG – Grade 2', Primary: 'Grade 3–5', Junior: 'Grade 6–8', Inter: 'Grade 9–12' };
+
+  const handlePrint = () => {
+    if (!data) return;
+    const sum = mkSummary([
+      { l: 'Category', v: category },
+      { l: 'Grade Range', v: GRADE_RANGES[category] || '—' },
+      { l: 'Students', v: data.totalStudents },
+      { l: 'Classes', v: data.totalClasses },
+      { l: 'Attendance Rate', v: `${data.stats?.attendance?.rate ?? 0}%` },
+    ]);
+
+    // Classes sub-table
+    const classRows = (data.classes || []).map(c =>
+      `<tr><td>${c.name}</td><td>${c.teacher || 'Unassigned'}</td><td>${c.capacity || '—'}</td></tr>`
+    ).join('');
+
+    const studentRows = (data.students || []).map(s =>
+      `<tr><td>${s.studentId || '—'}</td><td>${s.name}</td><td>${s.grade}</td><td style="text-transform:capitalize">${s.gender}</td><td>${s.contactNumber || '—'}</td><td>${s.parentName || '—'}</td><td>${s.village || '—'}</td><td>${s.classAssigned?.name || '—'}</td><td>${s.attendance?.present ?? 0}</td><td>${s.attendance?.total ?? 0}</td><td style="font-weight:700;color:${(s.attendance?.rate||0)>=80?'#16a34a':(s.attendance?.rate||0)>=60?'#d97706':'#dc2626'}">${s.attendance?.rate ?? 0}%</td></tr>`
+    ).join('');
+
+    const body = `
+      ${classRows ? `<div class="section-head">Classes (${data.classes?.length || 0})</div>${mkTable(['Class Name', 'Teacher', 'Capacity'], classRows)}` : ''}
+      <div class="section-head">Students (${data.totalStudents})</div>
+      ${mkTable(['Student ID', 'Name', 'Grade', 'Gender', 'Contact', 'Parent', 'Village', 'Class', 'Present', 'Total', 'Rate'], studentRows)}`;
+
+    printPage(`Category Report — ${category}`, body, sum, vbsYear);
+  };
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        {CATS.map(c => <button key={c} onClick={() => setCategory(c)} className={`btn ${c === category ? 'btn-primary' : 'btn-secondary'}`}>{c}</button>)}
+      {/* Category selector pills */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        {CATS.map(c => (
+          <button key={c} onClick={() => setCategory(c)}
+            className={`btn ${c === category ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '8px 16px', gap: 2 }}>
+            <span style={{ fontWeight: 700 }}>{c}</span>
+            <span style={{ fontSize: '0.68rem', opacity: 0.75 }}>{GRADE_RANGES[c]}</span>
+          </button>
+        ))}
       </div>
-      {!category && <Alert type="info">Select a category above.</Alert>}
+
+      {!category && <Alert type="info">Select a category above to view the report.</Alert>}
       {category && isLoading && <LoadingPage />}
       {category && !isLoading && !data && <Alert type="warning">No data for {category}.</Alert>}
       {category && !isLoading && data && (
         <>
+          <div className="card" style={{ marginBottom: 16, padding: '14px 18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>{category} Category <span style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', fontWeight: 400 }}>— {GRADE_RANGES[category]}</span></div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', marginTop: 4 }}>{data.totalStudents} students · {data.totalClasses} classes</div>
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={handlePrint}><Download size={13} /> Export PDF</button>
+            </div>
+          </div>
+
           <StatRow items={[
             { label: 'Students', value: data.totalStudents, color: '#3b82f6' },
             { label: 'Classes', value: data.totalClasses, color: '#8b5cf6' },
+            { label: 'Present', value: data.stats?.attendance?.present, color: '#16a34a' },
             { label: 'Rate', value: `${data.stats?.attendance?.rate ?? 0}%`, color: '#10b981' },
           ]} />
+
+          {/* Classes sub-list */}
+          {(data.classes || []).length > 0 && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header"><span className="card-title">🏫 Classes in {category}</span></div>
+              <div style={{ padding: '12px 16px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {data.classes.map(c => (
+                  <div key={c._id} style={{ padding: '8px 14px', border: '1px solid var(--color-border)', borderRadius: 10, background: 'var(--color-bg)', minWidth: 160 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.845rem' }}>{c.name}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                      {c.teacher || 'No teacher'} · Cap: {c.capacity || '—'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <SectionCard title={`👥 ${category} Students`}>
             <table>
-              <thead><tr><th>Student ID</th><th>Name</th><th>Grade</th><th>Gender</th><th>Village</th><th>Class</th><th>Rate</th></tr></thead>
+              <thead><tr><th>Student ID</th><th>Name</th><th>Grade</th><th>Gender</th><th>Contact</th><th>Village</th><th>Class</th><th>Present</th><th>Rate</th></tr></thead>
               <tbody>
                 {(data.students || []).map(s => (
                   <tr key={s._id}>
@@ -1142,8 +1340,10 @@ function CategoryReport({ vbsYear }) {
                     <td style={{ fontWeight: 600 }}>{s.name}</td>
                     <td>{s.grade}</td>
                     <td style={{ textTransform: 'capitalize', fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>{s.gender}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>{s.contactNumber || '—'}</td>
                     <td style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>{s.village || '—'}</td>
                     <td>{s.classAssigned?.name ? <span className="badge badge-navy">{s.classAssigned.name}</span> : <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>}</td>
+                    <td><span style={{ color: '#16a34a', fontWeight: 700 }}>{s.attendance?.present ?? 0}</span></td>
                     <td><RateBar rate={s.attendance?.rate ?? 0} /></td>
                   </tr>
                 ))}
