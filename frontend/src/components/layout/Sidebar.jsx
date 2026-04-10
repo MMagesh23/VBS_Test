@@ -4,10 +4,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard, Users, GraduationCap, Heart, BookOpen,
   ClipboardCheck, BarChart3, FileText, Settings, LogOut,
-  CheckSquare, Home, Download, Shield, QrCode, Menu, X,
+  CheckSquare, Home, Download, QrCode, Menu, X,
   UserCheck,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { BrandLogo } from '../../brand';
 
 const NAV = {
   admin: [
@@ -79,31 +80,65 @@ function DesktopSidebar({ items, theme, user, pendingCount, collapsed, setCollap
         boxShadow: '2px 0 20px rgba(0,0,0,0.15)',
       }}
     >
-      {/* Logo */}
-      <div style={{ padding: '18px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 10, minHeight: 68 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: theme.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Shield size={18} color="white" />
+      {/* Logo area — POJ brand logo */}
+      <div style={{
+        padding: '14px 12px',
+        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        display: 'flex', alignItems: 'center', gap: 10, minHeight: 68,
+      }}>
+        {/* Brand logo — circular crop container */}
+        <div style={{
+          width: 40, height: 40, borderRadius: 10,
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0, overflow: 'hidden',
+        }}>
+          <BrandLogo size={36} style={{ borderRadius: 8 }} />
         </div>
         <AnimatePresence>
           {!collapsed && (
-            <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'white', lineHeight: 1.2 }}>VBS Management</div>
-              <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>Presence of Jesus Ministry</div>
+            <motion.div
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ minWidth: 0 }}
+            >
+              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'white', lineHeight: 1.2 }}>
+                VBS Management
+              </div>
+              <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>
+                Presence of Jesus Ministry
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
       {/* User info */}
-      <div style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 9 }}>
-        <div style={{ width: 32, height: 32, borderRadius: '50%', background: theme.light, border: `2px solid ${theme.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800, flexShrink: 0, color: theme.accent }}>
+      <div style={{
+        padding: '12px 14px',
+        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        display: 'flex', alignItems: 'center', gap: 9,
+      }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: '50%',
+          background: theme.light, border: `2px solid ${theme.accent}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '0.8rem', fontWeight: 800, flexShrink: 0, color: theme.accent,
+        }}>
           {user?.name?.charAt(0).toUpperCase()}
         </div>
         <AnimatePresence>
           {!collapsed && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 148 }}>{user?.name}</div>
-              <div style={{ fontSize: '0.65rem', color: theme.accent, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{theme.label}</div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 148 }}>
+                {user?.name}
+              </div>
+              <div style={{ fontSize: '0.65rem', color: theme.accent, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {theme.label}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -184,11 +219,7 @@ function MobileDrawer({ items, theme, user, pendingCount, open, onClose }) {
   const handleLogout = async () => { await logout(); navigate('/login'); onClose(); };
 
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    document.body.style.overflow = open ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
@@ -196,40 +227,28 @@ function MobileDrawer({ items, theme, user, pendingCount, open, onClose }) {
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, backdropFilter: 'blur(2px)' }}
           />
-          {/* Drawer */}
           <motion.div
-            initial={{ x: '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '-100%' }}
+            initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            style={{
-              position: 'fixed', left: 0, top: 0, bottom: 0, width: 280,
-              background: 'var(--color-primary-dark)', color: 'white',
-              zIndex: 1001, display: 'flex', flexDirection: 'column',
-              overflowY: 'auto', boxShadow: '4px 0 24px rgba(0,0,0,0.3)',
-            }}
+            style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 280, background: 'var(--color-primary-dark)', color: 'white', zIndex: 1001, display: 'flex', flexDirection: 'column', overflowY: 'auto', boxShadow: '4px 0 24px rgba(0,0,0,0.3)' }}
           >
-            {/* Header */}
+            {/* Header with POJ logo */}
             <div style={{ padding: '16px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: theme.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Shield size={18} color="white" />
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                  <BrandLogo size={36} style={{ borderRadius: 8 }} />
                 </div>
                 <div>
                   <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'white' }}>VBS Management</div>
                   <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.45)' }}>Presence of Jesus Ministry</div>
                 </div>
               </div>
-              <button onClick={onClose}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <X size={18} />
               </button>
             </div>
@@ -260,8 +279,7 @@ function MobileDrawer({ items, theme, user, pendingCount, open, onClose }) {
                       background: isActive ? theme.light : 'transparent',
                       color: isActive ? 'white' : 'rgba(255,255,255,0.6)',
                       fontWeight: isActive ? 700 : 500,
-                      fontSize: '0.9rem',
-                      transition: 'all 0.15s',
+                      fontSize: '0.9rem', transition: 'all 0.15s',
                       borderLeft: isActive ? `3px solid ${theme.accent}` : '3px solid transparent',
                     })}
                   >
@@ -308,7 +326,6 @@ export default function Sidebar({ pendingCount = 0 }) {
   const items = NAV[user?.role] || [];
   const theme = ROLE_THEME[user?.role] || ROLE_THEME.viewer;
 
-  // Detect mobile
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -316,39 +333,18 @@ export default function Sidebar({ pendingCount = 0 }) {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Close drawer on route change
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [location.pathname]);
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
   if (isMobile) {
     return (
       <>
-        {/* Mobile top bar hamburger — rendered inside Header via MobileMenuButton */}
-        {/* Export the open state setter so Header can use it */}
-        <MobileDrawer
-          items={items}
-          theme={theme}
-          user={user}
-          pendingCount={pendingCount}
-          open={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-        />
-        {/* Mobile hamburger button — fixed top-left */}
+        <MobileDrawer items={items} theme={theme} user={user} pendingCount={pendingCount} open={mobileOpen} onClose={() => setMobileOpen(false)} />
         <button
           onClick={() => setMobileOpen(true)}
-          style={{
-            position: 'fixed', top: 14, left: 14, zIndex: 200,
-            width: 40, height: 40, borderRadius: 10,
-            background: 'var(--color-primary-dark)',
-            border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
-          }}
+          style={{ position: 'fixed', top: 14, left: 14, zIndex: 200, width: 40, height: 40, borderRadius: 10, background: 'var(--color-primary-dark)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}
         >
           <Menu size={20} color="white" />
         </button>
-        {/* Spacer so content doesn't hide behind fixed button */}
         <div style={{ width: 0, flexShrink: 0 }} />
       </>
     );
@@ -356,12 +352,8 @@ export default function Sidebar({ pendingCount = 0 }) {
 
   return (
     <DesktopSidebar
-      items={items}
-      theme={theme}
-      user={user}
-      pendingCount={pendingCount}
-      collapsed={collapsed}
-      setCollapsed={setCollapsed}
+      items={items} theme={theme} user={user}
+      pendingCount={pendingCount} collapsed={collapsed} setCollapsed={setCollapsed}
     />
   );
 }
