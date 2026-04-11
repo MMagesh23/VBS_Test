@@ -25,13 +25,10 @@ export default function LoginPage() {
     try {
       const user = await login(form.userID.trim(), form.password);
       toast.success(`Welcome back, ${user.name}!`);
+      navigate('/dashboard', { replace: true });
       // Use replace:true so the login page is removed from history stack,
       // preventing the back-button loop that triggered infinite redirects.
-      if (user.mustChangePassword) {
-        navigate('/change-password', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+      
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please try again.';
       toast.error(msg);
