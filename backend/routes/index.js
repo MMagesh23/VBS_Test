@@ -190,25 +190,11 @@ router.get('/reports/volunteer/:volunteerId', protect, authorize('admin', 'viewe
 router.get('/teacher/export-data', protect, authorize('admin', 'teacher'), getTeacherExportData);
 
 // ─── SETTINGS ────────────────────────────────────────────────────────
-// FIX: All settings routes now require authentication
-// The public /settings/active was previously unauthenticated — it exposed
-// internal config like timeWindow, lowAttendanceThreshold, etc.
-// The home page fetches only what it needs via the protected route.
-router.get('/settings', protect, adminOnly, getSettings); // Admin-only: full config list
-router.get('/settings/active', protect, getActiveSettings); // Authenticated users only
-router.post('/settings', protect, adminOnly, mutationLimiter, createSettings);
-router.put('/settings/:id', protect, adminOnly, mutationLimiter, updateSettings);
-router.put('/settings/:id/activate', protect, adminOnly, mutationLimiter, activateYear);
-
-// ─── PUBLIC SETTINGS (limited fields for home page) ──────────────────
-// NOTE: If the home page (unauthenticated) needs VBS info like vbsTitle, tagline,
-// and theme, add a separate public endpoint that only returns safe display fields:
-//
-// router.get('/public/vbs-info', getPublicVBSInfo);
-//
-// And in getPublicVBSInfo, return ONLY: { year, vbsTitle, tagline, theme.mainColor,
-// theme.accentColor, dates.startDate, dates.endDate, dailyThemes, previousYearPhotos }
-// Never expose: timeWindow, lowAttendanceThreshold, registrationMessage, etc.
+router.get('/settings', protect, getSettings);
+router.get('/settings/active', getActiveSettings);
+router.post('/settings', protect, adminOnly, createSettings);
+router.put('/settings/:id', protect, adminOnly, updateSettings);
+router.put('/settings/:id/activate', protect, adminOnly, activateYear);
 
 // ─── NOTIFICATIONS ───────────────────────────────────────────────────
 router.get('/notifications', protect, getNotifications);
