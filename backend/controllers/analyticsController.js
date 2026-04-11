@@ -141,12 +141,13 @@ const getAttendanceTrends = async (req, res, next) => {
 
     const [studentTrends, teacherTrends, volunteerTrends, classPerformance] = await Promise.all([
       StudentAttendance.aggregate([
-        { $match: yearFilter }, { $unwind: '$records' },
+        { $match: yearFilter },
+        { $unwind: '$records' },
         {
           $group: {
             _id: '$date',
             present: { $sum: { $cond: [{ $eq: ['$records.status', 'present'] }, 1, 0] } },
-            absent: { $sum: { $cond: [{ $eq: ['$records.status', 'absent'] }, 1, 0] } },
+            absent:  { $sum: { $cond: [{ $eq: ['$records.status', 'absent']  }, 1, 0] } },
           }
         },
         { $sort: { _id: 1 } },
@@ -171,10 +172,10 @@ const getAttendanceTrends = async (req, res, next) => {
           $group: {
             _id: '$date',
             present: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } },
-            absent: { $sum: { $cond: [{ $eq: ['$status', 'absent'] }, 1, 0] } },
-            late: { $sum: { $cond: [{ $eq: ['$status', 'late'] }, 1, 0] } },
-            leave: { $sum: { $cond: [{ $eq: ['$status', 'leave'] }, 1, 0] } },
-            total: { $sum: 1 },
+            absent:  { $sum: { $cond: [{ $eq: ['$status', 'absent']  }, 1, 0] } },
+            late:    { $sum: { $cond: [{ $eq: ['$status', 'late']    }, 1, 0] } },
+            leave:   { $sum: { $cond: [{ $eq: ['$status', 'leave']   }, 1, 0] } },
+            total:   { $sum: 1 },
           }
         },
         { $sort: { _id: 1 } },
@@ -186,29 +187,40 @@ const getAttendanceTrends = async (req, res, next) => {
           $group: {
             _id: '$date',
             present: { $sum: { $cond: [{ $in: ['$status', ['present', 'halfDay']] }, 1, 0] } },
-            absent: { $sum: { $cond: [{ $eq: ['$status', 'absent'] }, 1, 0] } },
-            total: { $sum: 1 },
+            absent:  { $sum: { $cond: [{ $eq:  ['$status', 'absent'] }, 1, 0] } },
+            total:   { $sum: 1 },
           }
         },
         { $sort: { _id: 1 } },
       ]),
 
       StudentAttendance.aggregate([
-        { $match: yearFilter }, { $unwind: '$records' },
+        { $match: yearFilter },
+        { $unwind: '$records' },
         {
           $group: {
             _id: '$class',
-            totalPresent: { $sum: { $cond: [{ $eq: ['$records.status', 'present'] }, 1, 0] } },
-            totalRecords: { $sum: 1 },
+            totalPresent:  { $sum: { $cond: [{ $eq: ['$records.status', 'present'] }, 1, 0] } },
+            totalRecords:  { $sum: 1 },
             daysSubmitted: { $addToSet: '$date' },
           }
         },
-        { $lookup: { from: 'classes', localField: '_id', foreignField: '_id', as: 'classInfo' } },
-        { $unwind: { path: '$classInfo', preserveNullAndEmpty: false } },
+        {
+          $lookup: {
+            from: 'classes',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'classInfo'
+          }
+        },
+        // ✅ FIXED: was 'preserveNullAndEmpty', correct field is 'preserveNullAndEmptyArrays'
+        { $unwind: { path: '$classInfo', preserveNullAndEmptyArrays: false } },
         {
           $project: {
-            className: '$classInfo.name', category: '$classInfo.category',
-            totalPresent: 1, totalRecords: 1,
+            className: '$classInfo.name',
+            category:  '$classInfo.category',
+            totalPresent: 1,
+            totalRecords: 1,
             attendanceRate: {
               $cond: [
                 { $gt: ['$totalRecords', 0] },
@@ -223,7 +235,10 @@ const getAttendanceTrends = async (req, res, next) => {
       ]),
     ]);
 
-    res.json({ success: true, data: { studentTrends, teacherTrends, volunteerTrends, classPerformance } });
+    res.json({
+      success: true,
+      data: { studentTrends, teacherTrends, volunteerTrends, classPerformance }
+    });
   } catch (err) { next(err); }
 };
 
