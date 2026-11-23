@@ -218,12 +218,14 @@ process.on('SIGINT',  () => shutdown('SIGINT'));
 
 process.on('unhandledRejection', err => {
   console.error('Unhandled Promise Rejection:', err.message);
-  server.close(() => process.exit(1));
+  if (server) server.close(() => process.exit(1));
+  else process.exit(1);
 });
 
 process.on('uncaughtException', err => {
   console.error('Uncaught Exception:', err.message);
-  server.close(() => process.exit(1));
+  if (server) server.close(() => process.exit(1));
+  else process.exit(1);
 });
 
 module.exports = app;
