@@ -62,6 +62,9 @@ const submitStudentAttendance = async (req, res, next) => {
     if (records.length > 500) {
       return res.status(400).json({ success: false, message: 'Attendance cannot exceed 500 students per submission' });
     }
+    if (records.some(record => !record || typeof record !== 'object')) {
+      return res.status(400).json({ success: false, message: 'Each attendance record must be an object' });
+    }
     const studentIds = records.map(record => String(record.studentId || ''));
     if (studentIds.some(id => !mongoose.isValidObjectId(id)) || new Set(studentIds).size !== studentIds.length) {
       return res.status(400).json({ success: false, message: 'Student IDs must be valid and unique' });
