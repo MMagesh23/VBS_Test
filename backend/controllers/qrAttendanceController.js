@@ -8,6 +8,8 @@ const { normalizeToISTMidnight } = require('../services/attendanceWindowService'
 
 // ─── Helpers ──────────────────────────────────────────────────────
 const generateToken = () => crypto.randomBytes(32).toString('hex');
+const isValidISTTime = value => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+const toMinutes = value => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
 
 /**
  * Returns current IST time as HH:MM string
@@ -109,8 +111,8 @@ const createQRSession = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Date is required' });
     }
 
-    const expiry = parseInt(expiryMinutes, 10);
-    if (isNaN(expiry) || expiry < 1 || expiry > 480) {
+    const expiry = Number(expiryMinutes);
+    if (!Number.isInteger(expiry) || expiry < 1 || expiry > 480) {
       return res.status(400).json({ success: false, message: 'expiryMinutes must be between 1 and 480' });
     }
 
@@ -139,17 +141,22 @@ const createQRSession = async (req, res, next) => {
     let resolvedWindowStart = windowStartTime || null;
     let resolvedOnTimeUntil = onTimeUntilTime || null;
 
+    if (windowStartTime && !isValidISTTime(windowStartTime)) {
+      return res.status(400).json({ success: false, message: 'windowStartTime must be a valid 24-hour HH:MM time' });
+    }
+    if (onTimeUntilTime && !isValidISTTime(onTimeUntilTime)) {
+      return res.status(400).json({ success: false, message: 'onTimeUntilTime must be a valid 24-hour HH:MM time' });
+    }
+    if (windowStartTime && onTimeUntilTime && toMinutes(onTimeUntilTime) < toMinutes(windowStartTime)) {
+      return res.status(400).json({ success: false, message: 'On-time cutoff cannot be earlier than the session start time' });
+    }
+
     if (onTimeUntilTime) {
-      // Validate HH:MM format
-      if (!/^\d{2}:\d{2}$/.test(onTimeUntilTime)) {
-        return res.status(400).json({ success: false, message: 'onTimeUntilTime must be in HH:MM format' });
-      }
       onTimeUntilDate = parseISTTime(onTimeUntilTime, attendanceDate);
       if (!onTimeUntilDate) {
         return res.status(400).json({ success: false, message: 'Invalid onTimeUntilTime' });
       }
 
-      // onTimeUntil must be before expiresAt
       if (onTimeUntilDate >= expiresAt) {
         return res.status(400).json({
           success: false,
