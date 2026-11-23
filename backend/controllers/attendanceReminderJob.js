@@ -16,6 +16,7 @@ const Settings = require('../models/Settings');
 const { Teacher } = require('../models/TeacherVolunteer');
 const User = require('../models/User');
 const { StudentAttendance } = require('../models/Attendance');
+const Notification = require('../models/Notification');
 const { notifyTeacherAttendancePending } = require('../services/notificationService');
 const { checkAttendanceWindow, normalizeToISTMidnight, getISTTimeParts } = require('../services/attendanceWindowService');
 
@@ -65,11 +66,22 @@ const runReminder = async () => {
         const classId = t.classAssigned?._id?.toString() || t.classAssigned?.toString();
         return classId && !submittedClassIds.has(classId);
       })
-      .map(t => {
+      .map(async t => {
         const userId = t.user?._id || t.user;
+        const classId = t.classAssigned?._id || t.classAssigned;
         const className = t.classAssigned?.name || 'your class';
-        if (!userId) return Promise.resolve();
-        return notifyTeacherAttendancePending(userId, className, minutesRemaining)
+        if (!userId || !classId) return;
+
+        // Persisted deduplication prevents repeated notifications on every timer tick.
+        const recentlyNotified = await Notification.exists({
+          recipient: userId,
+          'data.classId': classId,
+          'data.date': todayIST,
+          createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) },
+        });
+        if (recentlyNotified) return;
+
+        return notifyTeacherAttendancePending(userId, className, minutesRemaining, classId, todayIST)
           .catch(err => console.error(`Reminder failed for teacher ${t.name}:`, err.message));
       });
 

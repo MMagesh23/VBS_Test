@@ -2,13 +2,21 @@ const Class = require('../models/Class');
 const Student = require('../models/Student');
 const Settings = require('../models/Settings');
 
+const CLASS_EDITABLE_FIELDS = ['name', 'category', 'gradeRange', 'capacity', 'description', 'teacher', 'isActive'];
+const pickFields = (source, fields) => Object.fromEntries(fields.filter(key => Object.prototype.hasOwnProperty.call(source, key)).map(key => [key, source[key]]));
+
 const getClasses = async (req, res, next) => {
   try {
     const { year, category, search } = req.query;
     const filter = {};
     if (year) filter.year = Number(year);
     if (category) filter.category = category;
-    if (search) filter.name = { $regex: search, $options: 'i' };
+    if (search) {
+      const safeSearch = String(search).slice(0, 100).split('').map(char =>
+        '\\.^$|?*+()[]{}'.includes(char) ? '\\' + char : char
+      ).join('');
+      filter.name = { $regex: safeSearch, $options: 'i' };
+    }
 
     const classes = await Class.find(filter)
       .populate('teacher', 'name contactNumber')
@@ -51,14 +59,18 @@ const createClass = async (req, res, next) => {
     const year = req.body.year || settings?.year;
     if (!year) return res.status(400).json({ success: false, message: 'No active VBS year' });
 
-    const cls = await Class.create({ ...req.body, year, createdBy: req.user._id });
+    const cls = await Class.create({ ...pickFields(req.body, CLASS_EDITABLE_FIELDS), year, createdBy: req.user._id });
     res.status(201).json({ success: true, message: 'Class created', data: cls });
   } catch (err) { next(err); }
 };
 
 const updateClass = async (req, res, next) => {
   try {
-    const cls = await Class.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    const updates = pickFields(req.body, CLASS_EDITABLE_FIELDS);
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, message: 'No editable class fields provided' });
+    }
+    const cls = await Class.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true, runValidators: true })
       .populate('teacher', 'name');
     if (!cls) return res.status(404).json({ success: false, message: 'Class not found' });
     res.json({ success: true, message: 'Class updated', data: cls });

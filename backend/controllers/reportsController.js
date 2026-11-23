@@ -35,8 +35,14 @@ const getDailyReport = async (req, res, next) => {
     const { date, vbsYear } = req.query;
     if (!date) return res.status(400).json({ success: false, message: 'Date is required' });
 
+    const activeSettings = vbsYear ? null : await Settings.findOne({ isActive: true }).select('year');
+    const reportYear = vbsYear ? Number(vbsYear) : activeSettings?.year;
+    if (!Number.isInteger(reportYear)) {
+      return res.status(400).json({ success: false, message: 'No active VBS year configured' });
+    }
+
     const reportDate = normalizeToISTMidnight(date);
-    const yearFilter = vbsYear ? { vbsYear: Number(vbsYear) } : {};
+    const yearFilter = { vbsYear: reportYear };
 
     const [studentAttendance, teacherAttendance, volunteerAttendance, classes] = await Promise.all([
       StudentAttendance.find({ date: reportDate, ...yearFilter })
@@ -47,7 +53,7 @@ const getDailyReport = async (req, res, next) => {
         .populate('teacher', 'name classAssigned'),
       VolunteerAttendance.find({ date: reportDate, ...yearFilter })
         .populate('volunteer', 'name role shift'),
-      Class.find(vbsYear ? { year: Number(vbsYear) } : {}),
+      Class.find({ year: reportYear }),
     ]);
 
     const submittedClassIds = studentAttendance.map(a => a.class?._id?.toString());
@@ -92,13 +98,17 @@ const getClassReport = async (req, res, next) => {
     const cls = await Class.findById(req.params.classId).populate('teacher', 'name');
     if (!cls) return res.status(404).json({ success: false, message: 'Class not found' });
 
-    const students = await Student.find({ classAssigned: cls._id, isActive: true }).sort({ studentId: 1 });
+    const students = await Student.find({ classAssigned: cls._id, vbsYear: cls.year, isActive: true }).sort({ studentId: 1 });
 
-    const attendanceFilter = { class: cls._id };
+    const attendanceFilter = { class: cls._id, vbsYear: cls.year };
     if (startDate || endDate) {
       attendanceFilter.date = {};
       if (startDate) attendanceFilter.date.$gte = normalizeToISTMidnight(startDate);
-      if (endDate) attendanceFilter.date.$lte = normalizeToISTMidnight(endDate);
+      if (endDate) {
+        const endExclusive = normalizeToISTMidnight(endDate);
+        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+        attendanceFilter.date.$lt = endExclusive;
+      }
     }
 
     const attendanceRecords = await StudentAttendance.find(attendanceFilter)

@@ -109,7 +109,7 @@ const notifyEntryRejected = async (editorId, entityType, entityName, reason) => 
 /**
  * Notify teacher about attendance.
  */
-const notifyTeacherAttendancePending = async (teacherUserId, className, minutesLeft) => {
+const notifyTeacherAttendancePending = async (teacherUserId, className, minutesLeft, classId, attendanceDate) => {
   return createNotification({
     type: minutesLeft <= 30 ? 'time_window_reminder' : 'attendance_pending',
     recipientId: teacherUserId,
@@ -120,6 +120,7 @@ const notifyTeacherAttendancePending = async (teacherUserId, className, minutesL
         ? `Only ${minutesLeft} minutes left to submit attendance for ${className}!`
         : `Please submit attendance for ${className}. Time window is open.`,
     priority: minutesLeft <= 30 ? 'critical' : 'high',
+    data: { classId, date: attendanceDate },
   });
 };
 
