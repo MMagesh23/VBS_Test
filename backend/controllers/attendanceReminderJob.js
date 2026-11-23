@@ -83,7 +83,7 @@ const runReminder = async () => {
 
         return notifyTeacherAttendancePending(userId, className, minutesRemaining, classId, todayIST)
           .catch(err => console.error(`Reminder failed for teacher ${t.name}:`, err.message));
-      })      });
+      });
 
     if (remindPromises.length > 0) {
       await Promise.allSettled(remindPromises);
