@@ -95,7 +95,12 @@ const getDashboardStats = async (req, res, next) => {
 const getStudentAnalytics = async (req, res, next) => {
   try {
     const { vbsYear } = req.query;
-    const filter = vbsYear ? { vbsYear: Number(vbsYear), isActive: true } : { isActive: true };
+    const activeSettings = vbsYear ? null : await Settings.findOne({ isActive: true }).select('year');
+    const selectedYear = vbsYear ? Number(vbsYear) : activeSettings?.year;
+    if (!Number.isInteger(selectedYear)) {
+      return res.status(400).json({ success: false, message: 'No active VBS year configured' });
+    }
+    const filter = { vbsYear: selectedYear, isActive: true };
 
     const [gradeDistrib, categoryDistrib, genderDistrib, villageDistrib, schoolDistrib, religionDistrib, denominationDistrib] = await Promise.all([
       Student.aggregate([{ $match: filter }, { $group: { _id: '$grade', count: { $sum: 1 } } }]),
@@ -137,7 +142,12 @@ const getStudentAnalytics = async (req, res, next) => {
 const getAttendanceTrends = async (req, res, next) => {
   try {
     const { vbsYear } = req.query;
-    const yearFilter = vbsYear ? { vbsYear: Number(vbsYear) } : {};
+    const activeSettings = vbsYear ? null : await Settings.findOne({ isActive: true }).select('year');
+    const selectedYear = vbsYear ? Number(vbsYear) : activeSettings?.year;
+    if (!Number.isInteger(selectedYear)) {
+      return res.status(400).json({ success: false, message: 'No active VBS year configured' });
+    }
+    const yearFilter = { vbsYear: selectedYear };
 
     const [studentTrends, teacherTrends, volunteerTrends, classPerformance] = await Promise.all([
       StudentAttendance.aggregate([
@@ -246,7 +256,12 @@ const getAttendanceTrends = async (req, res, next) => {
 const getModificationsSummary = async (req, res, next) => {
   try {
     const { vbsYear } = req.query;
-    const filter = { isModified: true, ...(vbsYear ? { vbsYear: Number(vbsYear) } : {}) };
+    const activeSettings = vbsYear ? null : await Settings.findOne({ isActive: true }).select('year');
+    const selectedYear = vbsYear ? Number(vbsYear) : activeSettings?.year;
+    if (!Number.isInteger(selectedYear)) {
+      return res.status(400).json({ success: false, message: 'No active VBS year configured' });
+    }
+    const filter = { isModified: true, vbsYear: selectedYear };
     const modifiedRecords = await StudentAttendance.find(filter)
       .populate('class', 'name category').select('date class modificationHistory');
 
