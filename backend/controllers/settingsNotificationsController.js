@@ -2,6 +2,14 @@ const Settings = require('../models/Settings');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 
+const SETTINGS_EDITABLE_FIELDS = [
+  'vbsTitle', 'vbsVerseRef', 'vbsVerse', 'tagline', 'theme', 'dates', 'timeWindow',
+  'dailyThemes', 'previousYearPhotos', 'youtubeVideos', 'registrationEnabled',
+  'registrationMessage', 'lowAttendanceThreshold',
+];
+const SETTINGS_CREATE_FIELDS = ['year', ...SETTINGS_EDITABLE_FIELDS, 'isActive'];
+const pickFields = (source, fields) => Object.fromEntries(fields.filter(key => Object.prototype.hasOwnProperty.call(source, key)).map(key => [key, source[key]]));
+
 // ─── SETTINGS ─────────────────────────────────────────────────────
 
 const getSettings = async (req, res, next) => {
@@ -20,14 +28,18 @@ const getActiveSettings = async (req, res, next) => {
 
 const createSettings = async (req, res, next) => {
   try {
-    const settings = await Settings.create(req.body);
+    const settings = await Settings.create(pickFields(req.body, SETTINGS_CREATE_FIELDS));
     res.status(201).json({ success: true, message: 'VBS year created', data: settings });
   } catch (err) { next(err); }
 };
 
 const updateSettings = async (req, res, next) => {
   try {
-    const settings = await Settings.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const updates = pickFields(req.body, SETTINGS_EDITABLE_FIELDS);
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, message: 'No editable settings fields provided' });
+    }
+    const settings = await Settings.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true, runValidators: true });
     if (!settings) return res.status(404).json({ success: false, message: 'Settings not found' });
     res.json({ success: true, message: 'Settings updated', data: settings });
   } catch (err) { next(err); }
