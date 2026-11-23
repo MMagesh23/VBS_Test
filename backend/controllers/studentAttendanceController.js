@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { StudentAttendance } = require('../models/Attendance');
 const Student = require('../models/Student');
 const Class = require('../models/Class');
@@ -52,8 +53,21 @@ const submitStudentAttendance = async (req, res, next) => {
   try {
     const { date, classId, records } = req.body;
 
-    if (!date || !classId || !records?.length) {
+    if (!date || !classId || !Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ success: false, message: 'date, classId, and records are required' });
+    }
+    if (!mongoose.isValidObjectId(classId)) {
+      return res.status(400).json({ success: false, message: 'Invalid classId' });
+    }
+    if (records.length > 500) {
+      return res.status(400).json({ success: false, message: 'Attendance cannot exceed 500 students per submission' });
+    }
+    const studentIds = records.map(record => String(record.studentId || ''));
+    if (studentIds.some(id => !mongoose.isValidObjectId(id)) || new Set(studentIds).size !== studentIds.length) {
+      return res.status(400).json({ success: false, message: 'Student IDs must be valid and unique' });
+    }
+    if (records.some(record => !['present', 'absent'].includes(record.status))) {
+      return res.status(400).json({ success: false, message: 'Each attendance status must be present or absent' });
     }
 
     const attendanceDate = normalizeToISTMidnight(date);
@@ -127,6 +141,20 @@ const submitStudentAttendance = async (req, res, next) => {
 
     const cls = await Class.findById(classId);
     if (!cls) return res.status(404).json({ success: false, message: 'Class not found' });
+    if (Number(cls.year) !== Number(scheduleCheck.vbsYear)) {
+      return res.status(400).json({ success: false, message: 'Selected class does not belong to the scheduled VBS year' });
+    }
+
+    // Verify every submitted student belongs to this class and VBS year.
+    const eligibleStudents = await Student.find({
+      _id: { $in: studentIds },
+      classAssigned: cls._id,
+      vbsYear: scheduleCheck.vbsYear,
+      isActive: true,
+    }).select('_id');
+    if (eligibleStudents.length !== studentIds.length) {
+      return res.status(400).json({ success: false, message: 'One or more students are inactive or do not belong to this class and VBS year' });
+    }
 
     const attendance = await StudentAttendance.create({
       date: attendanceDate,
