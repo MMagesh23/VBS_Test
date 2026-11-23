@@ -49,8 +49,19 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Account is deactivated' });
     }
 
+    if (user.mustChangePassword &&
+        !(req.method === 'PUT' && req.path === '/auth/change-password') &&
+        !(req.method === 'POST' && req.path === '/auth/logout') &&
+        !(req.method === 'GET' && req.path === '/auth/me')) {
+      return res.status(403).json({
+        success: false,
+        code: 'PASSWORD_CHANGE_REQUIRED',
+        message: 'Change your temporary password before using the system.',
+      });
+    }
+
     req.user = user;
-    next();
+        next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ success: false, message: 'Token expired' });
