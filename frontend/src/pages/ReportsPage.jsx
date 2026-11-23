@@ -582,7 +582,7 @@ function StudentReport({ vbsYear }) {
         </tbody>
       </table>
       <div class="section-head">Day-by-Day History</div>
-      ${mkTable(['Date', 'Status', 'Record Type'], historyRows)}`;
+      ${mkTable(['Date', 'Class', 'Status', 'Record Type'], historyRows)}`;
 
     printPage(`Student Report — ${student?.name}`, body, sum, vbsYear);
   };
@@ -665,13 +665,14 @@ function StudentReport({ vbsYear }) {
       {/* History */}
       <SectionCard title="📅 Attendance History">
         <table>
-          <thead><tr><th>Date</th><th>Status</th><th>Record</th></tr></thead>
+          <thead><tr><th>Date</th><th>Class at Attendance</th><th>Status</th><th>Record</th></tr></thead>
           <tbody>
             {(attendance?.history || []).length === 0
-              ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-muted)' }}>No records.</td></tr>
+              ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-muted)' }}>No records.</td></tr>
               : (attendance?.history || []).map((h, i) => (
                 <tr key={i}>
                   <td style={{ fontWeight: 600 }}>{fmtDate(h.date)}</td>
+                  <td style={{ fontWeight: 600 }}>{h.class?.name || '—'}</td>
                   <td><span className={`badge ${h.status === 'present' ? 'badge-green' : 'badge-red'}`}>{h.status === 'present' ? '✓ Present' : '✗ Absent'}</span></td>
                   <td>{h.isModified ? <span className="badge badge-orange">Modified</span> : <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Original</span>}</td>
                 </tr>
