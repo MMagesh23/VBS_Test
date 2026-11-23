@@ -38,7 +38,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // ─── Connect Database ──────────────────────────────────────────────
-connectDB();
+const dbReady = connectDB();
 
 // ─── Security Middleware ───────────────────────────────────────────
 app.use(
@@ -90,10 +90,8 @@ const allowedOrigins = getAllowedOrigins();
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) {
-        if (process.env.NODE_ENV !== 'production') return callback(null, true);
-        return callback(new Error('Origin header required in production'));
-      }
+      // Non-browser clients and server-to-server health checks may omit Origin.
+      if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error(`CORS: Origin '${origin}' not allowed`));
     },
@@ -107,6 +105,9 @@ app.use(
 // ─── Body Parsing ──────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Do not serve API traffic until MongoDB is ready (also covers serverless requests).
+app.use((req, res, next) => { dbReady.then(() => next()).catch(next); });
 
 // ─── Logging ───────────────────────────────────────────────────────
 app.use(
@@ -162,8 +163,10 @@ app.use(notFound);
 app.use(errorHandler);
 
 // ─── Start Server ──────────────────────────────────────────────────
-const PORT   = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
+const PORT = process.env.PORT || 5000;
+let server;
+const startServer = () => {
+  server = app.listen(PORT, () => {
   console.log(`\n🚀 VBS Management System running on port ${PORT}`);
   console.log(`📍 Environment : ${process.env.NODE_ENV}`);
   console.log(`🏠 Health      : /health`);
@@ -175,7 +178,16 @@ const server = app.listen(PORT, () => {
     const { startAttendanceReminderJob } = require('./controllers/attendanceReminderJob');
     startAttendanceReminderJob();
   }
-});
+  });
+};
+
+// Vercel invokes the exported Express app; other hosts start a listener here.
+if (!process.env.VERCEL) {
+  dbReady.then(startServer).catch(err => {
+    console.error('❌ Startup aborted: database is unavailable', err.message);
+    process.exit(1);
+  });
+}
 
 // ─── Graceful Shutdown ─────────────────────────────────────────────
 const shutdown = signal => {
@@ -185,6 +197,7 @@ const shutdown = signal => {
     stopAttendanceReminderJob();
   } catch { /* ignore if not loaded */ }
 
+  if (!server) return process.exit(0);
   server.close(() => {
     console.log('✅ HTTP server closed');
     const mongoose = require('mongoose');
