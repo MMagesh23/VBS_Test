@@ -47,9 +47,10 @@ const updateSettings = async (req, res, next) => {
 
 const activateYear = async (req, res, next) => {
   try {
-    await Settings.updateMany({ isActive: true }, { isActive: false });
-    const settings = await Settings.findByIdAndUpdate(req.params.id, { isActive: true }, { new: true });
+    const settings = await Settings.findById(req.params.id);
     if (!settings) return res.status(404).json({ success: false, message: 'Settings not found' });
+    settings.isActive = true;
+    await settings.save();
     res.json({ success: true, message: `VBS ${settings.year} is now active`, data: settings });
   } catch (err) { next(err); }
 };
