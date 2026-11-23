@@ -98,8 +98,6 @@ const getClassReport = async (req, res, next) => {
     const cls = await Class.findById(req.params.classId).populate('teacher', 'name');
     if (!cls) return res.status(404).json({ success: false, message: 'Class not found' });
 
-    const students = await Student.find({ classAssigned: cls._id, vbsYear: cls.year, isActive: true }).sort({ studentId: 1 });
-
     const attendanceFilter = { class: cls._id, vbsYear: cls.year };
     if (startDate || endDate) {
       attendanceFilter.date = {};
@@ -113,6 +111,19 @@ const getClassReport = async (req, res, next) => {
 
     const attendanceRecords = await StudentAttendance.find(attendanceFilter)
       .populate('submittedBy', 'name').sort({ date: 1 });
+
+    // Include the current roster plus every student recorded in this class's
+    // historical attendance. A transfer must not erase the student's old class history.
+    const historicalStudentIds = [...new Set(
+      attendanceRecords.flatMap(rec => rec.records.map(record => record.student?.toString()).filter(Boolean))
+    )];
+    const students = await Student.find({
+      vbsYear: cls.year,
+      $or: [
+        { classAssigned: cls._id, isActive: true },
+        { _id: { $in: historicalStudentIds } },
+      ],
+    }).sort({ studentId: 1 });
 
     const studentStats = students.map(s => {
       let present = 0, absent = 0;
@@ -140,14 +151,21 @@ const getStudentReport = async (req, res, next) => {
     const student = await Student.findById(req.params.studentId).populate('classAssigned', 'name category');
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
+    // Query by student and VBS year, not current classAssigned. Attendance documents
+    // retain the class that was assigned on the day attendance was submitted.
     const attendanceRecords = await StudentAttendance.find({
-      class: student.classAssigned?._id,
+      vbsYear: student.vbsYear,
       'records.student': student._id,
-    }).sort({ date: 1 });
+    }).populate('class', 'name category').sort({ date: 1 });
 
     const history = attendanceRecords.map(rec => {
       const r = rec.records.find(r => r.student?.toString() === student._id.toString());
-      return { date: rec.date, status: r?.status || 'unknown', isModified: rec.isModified };
+      return {
+        date: rec.date,
+        status: r?.status || 'unknown',
+        class: rec.class ? { _id: rec.class._id, name: rec.class.name, category: rec.class.category } : null,
+        isModified: rec.isModified,
+      };
     });
 
     const present = history.filter(h => h.status === 'present').length;
@@ -263,6 +281,14 @@ const getFullYearReport = async (req, res, next) => {
 
     const allStudents = await Student.find({ vbsYear: year, isActive: true })
       .populate('classAssigned', 'name category').sort({ category: 1, studentId: 1 });
+    // Include students who were transferred out (or later deactivated) when
+    // constructing historical class attendance sheets.
+    const attendanceStudentIds = [...new Set(
+      allStudentAttendance.flatMap(rec => rec.records.map(record => record.student?._id?.toString() || record.student?.toString()).filter(Boolean))
+    )];
+    const historicalStudents = await Student.find({ _id: { $in: attendanceStudentIds }, vbsYear: year })
+      .populate('classAssigned', 'name category');
+    const studentsById = new Map([...allStudents, ...historicalStudents].map(student => [student._id.toString(), student]));
 
     const dateSet = new Set();
     allStudentAttendance.forEach(a => dateSet.add(normalizeToISTMidnight(a.date).getTime()));
@@ -302,10 +328,17 @@ const getFullYearReport = async (req, res, next) => {
 
     const classData = allClasses.map(cls => {
       const cid = cls._id.toString();
-      const classStudents = allStudents.filter(
-        s => s.classAssigned?._id?.toString() === cid || s.classAssigned?.toString() === cid
-      );
       const classAttMap = attendanceByClass[cid] || {};
+      const classStudentIds = new Set([
+        ...allStudents
+          .filter(s => s.classAssigned?._id?.toString() === cid || s.classAssigned?.toString() === cid)
+          .map(s => s._id.toString()),
+        ...Object.keys(classAttMap),
+      ]);
+      const classStudents = [...classStudentIds]
+        .map(studentId => studentsById.get(studentId))
+        .filter(Boolean)
+        .sort((a, b) => String(a.studentId || '').localeCompare(String(b.studentId || '')));
 
       const studentsWithAtt = classStudents.map((s, idx) => {
         const sid = s._id.toString();

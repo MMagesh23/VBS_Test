@@ -39,14 +39,26 @@ const getTeacherExportData = async (req, res, next) => {
 
     if (!classId) return res.status(400).json({ success: false, message: 'classId is required' });
 
-    const [cls, students, attendanceRecords, teacher] = await Promise.all([
+    const [cls, attendanceRecords, teacher] = await Promise.all([
       Class.findById(classId),
-      Student.find({ classAssigned: classId, isActive: true }).sort({ name: 1 }),
       StudentAttendance.find({ class: classId, vbsYear: settings.year }).sort({ date: 1 }),
       Teacher.findOne({ classAssigned: classId }).populate('user', 'name'),
     ]);
 
     if (!cls) return res.status(404).json({ success: false, message: 'Class not found' });
+
+    // Export the current roster together with students present in this class's
+    // historical attendance, even if they have since moved to another class.
+    const historicalStudentIds = [...new Set(
+      attendanceRecords.flatMap(record => record.records.map(item => item.student?.toString()).filter(Boolean))
+    )];
+    const students = await Student.find({
+      vbsYear: settings.year,
+      $or: [
+        { classAssigned: classId, isActive: true },
+        { _id: { $in: historicalStudentIds } },
+      ],
+    }).sort({ name: 1 });
 
     // Build attendance matrix: student × day
     const attendanceMap = {};
