@@ -12,7 +12,9 @@ const getClasses = async (req, res, next) => {
     if (year) filter.year = Number(year);
     if (category) filter.category = category;
     if (search) {
-      const safeSearch = String(search).slice(0, 100).replace(/[.*+?^${}()|[\\]\\]/g, '\\      const safeSearch = String(search).slice(0, 100).replace(/[.*+?^${}()|[\\]\\]/g, '\\    if (search) filter.name = { $regex: search, $options: 'i' };');');
+      const safeSearch = String(search).slice(0, 100).split('').map(char =>
+        '\\.^$|?*+()[]{}'.includes(char) ? '\\' + char : char
+      ).join('');
       filter.name = { $regex: safeSearch, $options: 'i' };
     }
 
