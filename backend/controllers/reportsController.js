@@ -1,7 +1,9 @@
 // backend/controllers/reportsController.js — UPDATED
 // Added: getVillageList, getVillageReport, getCategoryReport
 
+const mongoose = require('mongoose');
 const Student = require('../models/Student');
+const ClassHistory = require('../models/ClassHistory');
 const { Teacher, Volunteer } = require('../models/TeacherVolunteer');
 const Class = require('../models/Class');
 const { StudentAttendance, TeacherAttendance, VolunteerAttendance } = require('../models/Attendance');
@@ -85,70 +87,250 @@ const getDailyReport = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// @desc    Class report
+// ─── Class-transfer aware helpers ──────────────────────────────────
+// Attendance documents are keyed by the class they were taken in, so history is never lost on a
+// transfer. These helpers make the *reports* honour that: a class report lists everyone who was
+// ever part of the class, and a student report spans every class the student attended.
+const idOf = (v) => (v ? (v._id || v).toString() : null);
+
+/**
+ * Everyone who belongs in a class's report:
+ *   current roster ∪ anyone with attendance recorded in this class ∪ anyone moved in/out of it.
+ * Stats only count attendance taken IN this class.
+ */
+const buildClassRoster = async (cls, attendanceRecords) => {
+  const clsId = cls._id.toString();
+
+  // 1. per-student stats from attendance taken in THIS class
+  const stats = new Map();
+  attendanceRecords.forEach((rec) => {
+    rec.records.forEach((r) => {
+      const id = idOf(r.student);
+      if (!id) return;
+      let st = stats.get(id);
+      if (!st) { st = { present: 0, absent: 0, firstDate: rec.date, lastDate: rec.date }; stats.set(id, st); }
+      if (r.status === 'present') st.present++; else st.absent++;
+      st.lastDate = rec.date;
+    });
+  });
+
+  // 2. transfers that touch this class (latest move per student)
+  const history = await ClassHistory.find({ $or: [{ fromClass: cls._id }, { toClass: cls._id }] })
+    .populate('fromClass', 'name').populate('toClass', 'name')
+    .sort({ effectiveDate: 1, reassignedAt: 1 });
+  const movedIn = new Map();
+  const movedOut = new Map();
+  history.forEach((h) => {
+    const id = idOf(h.student);
+    if (idOf(h.toClass) === clsId && h.fromClass) movedIn.set(id, { from: h.fromClass.name, date: h.effectiveDate });
+    if (idOf(h.fromClass) === clsId) movedOut.set(id, { to: h.toClass?.name || 'Unassigned', date: h.effectiveDate });
+  });
+
+  // 3. roster
+  const knownIds = new Set([...stats.keys(), ...history.map((h) => idOf(h.student))]);
+  const students = await Student.find({
+    $or: [{ classAssigned: cls._id, isActive: true }, { _id: { $in: [...knownIds] } }],
+  }).populate('classAssigned', 'name');
+
+  const rows = students.map((s) => {
+    const id = s._id.toString();
+    const st = stats.get(id) || { present: 0, absent: 0, firstDate: null, lastDate: null };
+    const total = st.present + st.absent;
+    const isCurrentMember = idOf(s.classAssigned) === clsId;
+
+    let transfer = null;
+    if (!isCurrentMember) {
+      const out = movedOut.get(id);
+      transfer = { type: 'out', otherClass: out?.to || s.classAssigned?.name || 'Unassigned', date: out?.date || null };
+    } else if (movedIn.has(id)) {
+      const inn = movedIn.get(id);
+      transfer = { type: 'in', otherClass: inn.from, date: inn.date };
+    }
+
+    return {
+      ...s.toObject(),
+      present: st.present, absent: st.absent, total,
+      rate: total > 0 ? Math.round((st.present / total) * 100) : 0,
+      firstDate: st.firstDate, lastDate: st.lastDate,
+      isCurrentMember, transfer,
+    };
+  });
+
+  // current members first, then transferred-out students; each by studentId
+  rows.sort((a, b) => (Number(b.isCurrentMember) - Number(a.isCurrentMember))
+    || String(a.studentId || '').localeCompare(String(b.studentId || '')));
+  return rows;
+};
+
+const classDateFilter = (startDate, endDate) => {
+  if (!startDate && !endDate) return {};
+  const date = {};
+  if (startDate) date.$gte = normalizeToISTMidnight(startDate);
+  if (endDate) date.$lte = normalizeToISTMidnight(endDate);
+  return { date };
+};
+
+// @desc    Class report (current students + students transferred in/out, with per-class stats)
 const getClassReport = async (req, res, next) => {
   try {
     const { startDate, endDate } = req.query;
+    if (!mongoose.isValidObjectId(req.params.classId)) {
+      return res.status(400).json({ success: false, message: 'Invalid class id' });
+    }
     const cls = await Class.findById(req.params.classId).populate('teacher', 'name');
     if (!cls) return res.status(404).json({ success: false, message: 'Class not found' });
 
-    const students = await Student.find({ classAssigned: cls._id, isActive: true }).sort({ studentId: 1 });
-
-    const attendanceFilter = { class: cls._id };
-    if (startDate || endDate) {
-      attendanceFilter.date = {};
-      if (startDate) attendanceFilter.date.$gte = normalizeToISTMidnight(startDate);
-      if (endDate) attendanceFilter.date.$lte = normalizeToISTMidnight(endDate);
-    }
-
-    const attendanceRecords = await StudentAttendance.find(attendanceFilter)
+    const attendanceRecords = await StudentAttendance.find({ class: cls._id, ...classDateFilter(startDate, endDate) })
       .populate('submittedBy', 'name').sort({ date: 1 });
 
-    const studentStats = students.map(s => {
-      let present = 0, absent = 0;
-      attendanceRecords.forEach(rec => {
-        const r = rec.records.find(r => r.student?.toString() === s._id.toString());
-        if (r) { if (r.status === 'present') present++; else absent++; }
-      });
-      const total = present + absent;
-      return { ...s.toObject(), present, absent, total, rate: total > 0 ? Math.round((present / total) * 100) : 0 };
-    });
+    const studentStats = await buildClassRoster(cls, attendanceRecords);
 
-    const classAvgRate = studentStats.length > 0
-      ? Math.round(studentStats.reduce((s, x) => s + x.rate, 0) / studentStats.length) : 0;
+    // Average over students who actually have records in this class
+    const rated = studentStats.filter((s) => s.total > 0);
+    const classAvgRate = rated.length > 0
+      ? Math.round(rated.reduce((sum, x) => sum + x.rate, 0) / rated.length) : 0;
 
     res.json({
       success: true,
-      data: { class: cls, students: studentStats, attendanceRecords, totalDays: attendanceRecords.length, classAvgRate },
+      data: {
+        class: cls, students: studentStats, attendanceRecords,
+        totalDays: attendanceRecords.length, classAvgRate,
+        summary: {
+          current: studentStats.filter((s) => s.isCurrentMember).length,
+          transferredOut: studentStats.filter((s) => s.transfer?.type === 'out').length,
+          transferredIn: studentStats.filter((s) => s.transfer?.type === 'in').length,
+        },
+      },
     });
   } catch (err) { next(err); }
 };
 
-// @desc    Student report
+// @desc    Students of a class — current AND former (for the class → student picker)
+// @route   GET /api/reports/class/:classId/students
+const getClassStudents = async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.classId)) {
+      return res.status(400).json({ success: false, message: 'Invalid class id' });
+    }
+    const cls = await Class.findById(req.params.classId).select('name category year');
+    if (!cls) return res.status(404).json({ success: false, message: 'Class not found' });
+
+    const attendanceRecords = await StudentAttendance.find({ class: cls._id })
+      .select('date records.student records.status').sort({ date: 1 });
+    const roster = await buildClassRoster(cls, attendanceRecords);
+
+    res.json({
+      success: true,
+      data: {
+        class: cls,
+        students: roster.map((s) => ({
+          _id: s._id, studentId: s.studentId, name: s.name, grade: s.grade, village: s.village,
+          isActive: s.isActive, isCurrentMember: s.isCurrentMember, transfer: s.transfer,
+          present: s.present, absent: s.absent, total: s.total, rate: s.rate,
+        })),
+      },
+    });
+  } catch (err) { next(err); }
+};
+
+// @desc    Student report — complete attendance history across every class the student has been in.
+//          Optional ?classId= narrows the report to the attendance taken in that one class.
+// @route   GET /api/reports/student/:studentId
 const getStudentReport = async (req, res, next) => {
   try {
+    const { classId } = req.query;
+    if (!mongoose.isValidObjectId(req.params.studentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid student id' });
+    }
+    if (classId && !mongoose.isValidObjectId(classId)) {
+      return res.status(400).json({ success: false, message: 'Invalid class id' });
+    }
+
     const student = await Student.findById(req.params.studentId).populate('classAssigned', 'name category');
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
-    const attendanceRecords = await StudentAttendance.find({
-      class: student.classAssigned?._id,
-      'records.student': student._id,
-    }).sort({ date: 1 });
+    // All attendance the student appears in (any class) – the source of truth for history
+    const [allAttendance, transferRows] = await Promise.all([
+      StudentAttendance.find({ 'records.student': student._id })
+        .populate('class', 'name category').sort({ date: 1 }),
+      ClassHistory.find({ student: student._id })
+        .populate('fromClass', 'name category').populate('toClass', 'name category')
+        .populate('reassignedBy', 'name').sort({ effectiveDate: 1, reassignedAt: 1 }),
+    ]);
 
-    const history = attendanceRecords.map(rec => {
-      const r = rec.records.find(r => r.student?.toString() === student._id.toString());
-      return { date: rec.date, status: r?.status || 'unknown', isModified: rec.isModified };
+    const currentClassId = idOf(student.classAssigned);
+
+    // Per-class breakdown (also lists classes the student was moved to/from with no records yet)
+    const byClass = new Map();
+    const ensureClass = (c) => {
+      const id = idOf(c);
+      if (!id) return null;
+      if (!byClass.has(id)) {
+        byClass.set(id, {
+          _id: id, name: c.name || 'Unknown class', category: c.category,
+          isCurrent: id === currentClassId, present: 0, absent: 0, total: 0, rate: 0,
+          firstDate: null, lastDate: null,
+        });
+      }
+      return byClass.get(id);
+    };
+
+    const fullHistory = [];
+    allAttendance.forEach((rec) => {
+      const r = rec.records.find((x) => idOf(x.student) === student._id.toString());
+      if (!r) return;
+      const entry = ensureClass(rec.class);
+      if (!entry) return;                                    // class was deleted – skip orphan row
+      entry.total++;
+      if (r.status === 'present') entry.present++; else entry.absent++;
+      entry.firstDate = entry.firstDate || rec.date;
+      entry.lastDate = rec.date;
+      fullHistory.push({
+        date: rec.date, status: r.status || 'unknown', isModified: rec.isModified,
+        classId: entry._id, className: entry.name, classCategory: entry.category,
+      });
     });
 
-    const present = history.filter(h => h.status === 'present').length;
-    const absent = history.filter(h => h.status === 'absent').length;
+    if (student.classAssigned) ensureClass(student.classAssigned);
+    transferRows.forEach((t) => { ensureClass(t.fromClass); ensureClass(t.toClass); });
+
+    const classes = [...byClass.values()].map((c) => ({
+      ...c, rate: c.total > 0 ? Math.round((c.present / c.total) * 100) : 0,
+    })).sort((a, b) => {
+      if (!a.firstDate && !b.firstDate) return 0;
+      if (!a.firstDate) return 1;
+      if (!b.firstDate) return -1;
+      return new Date(a.firstDate) - new Date(b.firstDate);
+    });
+
+    // Scope: one class, or everything
+    const history = classId ? fullHistory.filter((h) => h.classId === classId) : fullHistory;
+    const present = history.filter((h) => h.status === 'present').length;
+    const absent = history.filter((h) => h.status === 'absent').length;
     const total = history.length;
+
+    const overallPresent = fullHistory.filter((h) => h.status === 'present').length;
+    const overallTotal = fullHistory.length;
 
     res.json({
       success: true,
       data: {
         student,
+        scope: classId ? 'class' : 'all',
+        selectedClass: classId ? (classes.find((c) => c._id === classId) || null) : null,
         attendance: { history, present, absent, total, rate: total > 0 ? Math.round((present / total) * 100) : 0 },
+        overall: {
+          present: overallPresent, absent: overallTotal - overallPresent, total: overallTotal,
+          rate: overallTotal > 0 ? Math.round((overallPresent / overallTotal) * 100) : 0,
+        },
+        classes,
+        transfers: transferRows.map((t) => ({
+          _id: t._id,
+          from: t.fromClass ? { _id: idOf(t.fromClass), name: t.fromClass.name } : null,
+          to: t.toClass ? { _id: idOf(t.toClass), name: t.toClass.name } : null,
+          effectiveDate: t.effectiveDate, reassignedAt: t.reassignedAt,
+          reassignedBy: t.reassignedBy?.name || null, reason: t.reason || '',
+        })),
       },
     });
   } catch (err) { next(err); }
@@ -290,17 +472,54 @@ const getFullYearReport = async (req, res, next) => {
       volAttMap[vid][dateTs] = rec;
     });
 
+    // Transfer-aware: a class lists its current students AND students who have attendance recorded
+    // in it but have since moved elsewhere. Attendance taken before a transfer stays in the old class.
+    const classNameById = {};
+    allClasses.forEach(c => { classNameById[c._id.toString()] = c.name; });
+    const studentById = new Map(allStudents.map(s => [s._id.toString(), s]));
+    allStudentAttendance.forEach(rec => {
+      rec.records.forEach(r => {
+        const doc = r.student && r.student._id ? r.student : null;      // populated doc
+        if (doc && !studentById.has(doc._id.toString())) studentById.set(doc._id.toString(), doc);
+      });
+    });
+    const classesAttendedBy = {};                                       // studentId -> Set(classId)
+    Object.entries(attendanceByClass).forEach(([cid, byStudent]) => {
+      Object.keys(byStudent).forEach(sid => {
+        (classesAttendedBy[sid] = classesAttendedBy[sid] || new Set()).add(cid);
+      });
+    });
+
     const classData = allClasses.map(cls => {
       const cid = cls._id.toString();
-      const classStudents = allStudents.filter(
+      const classAttMap = attendanceByClass[cid] || {};
+
+      const currentStudents = allStudents.filter(
         s => s.classAssigned?._id?.toString() === cid || s.classAssigned?.toString() === cid
       );
-      const classAttMap = attendanceByClass[cid] || {};
+      const currentIds = new Set(currentStudents.map(s => s._id.toString()));
+      const formerStudents = Object.keys(classAttMap)
+        .filter(sid => !currentIds.has(sid) && studentById.has(sid))
+        .map(sid => studentById.get(sid));
+      const classStudents = [...currentStudents, ...formerStudents];
 
       const studentsWithAtt = classStudents.map((s, idx) => {
         const sid = s._id.toString();
         const attByDate = classAttMap[sid] || {};
+        const isCurrent = currentIds.has(sid);
+        const otherClassIds = [...(classesAttendedBy[sid] || [])].filter(c => c !== cid);
+        const wasTransferred = !isCurrent || otherClassIds.length > 0;
+
         const presentDays = vbsDates.filter(d => attByDate[d.ts] === 'present').length;
+        // Transferred students are measured against the days recorded for them in THIS class
+        const recordedDays = vbsDates.filter(d => !!attByDate[d.ts]).length;
+        const possibleDays = wasTransferred ? recordedDays : vbsDates.length;
+
+        const currentClassName = s.classAssigned?.name || classNameById[s.classAssigned?.toString?.()] || 'Unassigned';
+        let transferNote = '';
+        if (!isCurrent) transferNote = `Transferred to ${currentClassName}`;
+        else if (otherClassIds.length) transferNote = `Transferred from ${otherClassIds.map(c => classNameById[c] || 'another class').join(', ')}`;
+
         const attendanceRow = {};
         vbsDates.forEach(d => { attendanceRow[d.dateStr] = attByDate[d.ts] || ''; });
         return {
@@ -308,17 +527,18 @@ const getFullYearReport = async (req, res, next) => {
           gender: s.gender, category: s.category, village: s.village || '',
           contactNumber: s.contactNumber || '', parentName: s.parentName || '',
           schoolName: s.schoolName || '', attendance: attendanceRow,
-          totalPresent: presentDays, totalDays: vbsDates.length,
-          percentage: vbsDates.length > 0 ? Math.round((presentDays / vbsDates.length) * 100) : 0,
+          totalPresent: presentDays, totalDays: possibleDays,
+          percentage: possibleDays > 0 ? Math.round((presentDays / possibleDays) * 100) : 0,
+          isCurrentMember: isCurrent, transferNote,
         };
       });
 
       const totalPresent = studentsWithAtt.reduce((s, x) => s + x.totalPresent, 0);
-      const totalPossible = studentsWithAtt.length * vbsDates.length;
+      const totalPossible = studentsWithAtt.reduce((s, x) => s + x.totalDays, 0);
       return {
         classId: cid, className: cls.name, category: cls.category, capacity: cls.capacity,
         teacher: cls.teacher ? { name: cls.teacher.name, contact: cls.teacher.contactNumber } : null,
-        students: studentsWithAtt, studentCount: studentsWithAtt.length,
+        students: studentsWithAtt, studentCount: currentStudents.length,
         stats: { totalPresent, totalPossible, attendanceRate: totalPossible > 0 ? Math.round((totalPresent / totalPossible) * 100) : 0 },
       };
     });
@@ -692,7 +912,7 @@ const getReligionReport = async (req, res, next) => {
 };
 
 module.exports = {
-  getDailyReport, getClassReport, getStudentReport, getTeacherReport,
+  getDailyReport, getClassReport, getClassStudents, getStudentReport, getTeacherReport,
   getVolunteerReport, getFullYearReport,
   getVillageList, getVillageReport, getCategoryReport,
   getStudentAttendanceReport, getReligionReport,  // ← ADD THESE

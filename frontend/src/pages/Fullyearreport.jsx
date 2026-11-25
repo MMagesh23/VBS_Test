@@ -510,7 +510,7 @@ export function FullYearReport({ vbsYear, allYears }) {
                                 <tr key={s.studentId}>
                                   <td style={{ color: '#9ca3af', fontSize: '0.75rem' }}>{s.sno}</td>
                                   <td><span style={{ fontFamily: 'monospace', fontSize: '0.75rem', background: '#f1f5f9', padding: '1px 6px', borderRadius: 4 }}>{s.studentId || '—'}</span></td>
-                                  <td style={{ fontWeight: 600 }}>{s.name}</td>
+                                  <td style={{ fontWeight: 600 }}>{s.name}{s.transferNote && <div style={{ fontSize: '0.68rem', fontWeight: 600, color: s.isCurrentMember ? '#2563eb' : '#c2410c' }}>{s.transferNote}</div>}</td>
                                   <td style={{ fontSize: '0.82rem', color: '#6b7280' }}>{s.grade}</td>
                                   <td style={{ textAlign: 'center', color: '#16a34a', fontWeight: 700 }}>{s.totalPresent}</td>
                                   <td style={{ textAlign: 'center', color: '#6b7280' }}>{s.totalDays}</td>
