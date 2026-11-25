@@ -152,7 +152,7 @@ const headHtml = (title) => `
 
     classes.forEach(cls => {
       body += `<div class="page-break"></div>`;
-      body += `<div class="section-hdr">📚 Class: ${cls.className} <span style="font-weight:400;font-size:8pt">(${cls.category}) · Teacher: ${cls.teacher?.name || 'Unassigned'} · ${cls.studentCount} Students · Rate: ${cls.stats.attendanceRate}%</span></div>`;
+      body += `<div class="section-hdr">📚 Class: ${cls.className} <span style="font-weight:400;font-size:8pt">(${cls.category}) · Teacher: ${cls.teacher?.name || 'Unassigned'} · ${cls.studentCount} Students${cls.students.length > cls.studentCount ? ` + ${cls.students.length - cls.studentCount} transferred out` : ''} · Rate: ${cls.stats.attendanceRate}%</span></div>`;
 
       if (cls.students.length === 0) {
         body += `<p style="color:#888;font-size:8pt;padding:8px 0">No students in this class.</p>`;
@@ -179,12 +179,12 @@ const headHtml = (title) => `
           <tbody>
             ${cls.students.map((s, idx) => {
               const dayCells = chunk.map(d =>
-                `<td style="text-align:center;font-size:8pt;font-weight:700;color:${s.attendance[d.dateStr] === 'present' ? '#16a34a' : s.attendance[d.dateStr] === 'absent' ? '#dc2626' : '#ccc'}">${s.attendance[d.dateStr] === 'present' ? '✓' : s.attendance[d.dateStr] === 'absent' ? '✗' : ''}</td>`
+                `<td style="text-align:center;font-size:8pt;font-weight:700;color:${s.attendance[d.dateStr] === 'present' ? '#16a34a' : s.attendance[d.dateStr] === 'absent' ? '#dc2626' : '#ccc'}">${s.attendance[d.dateStr] === 'present' ? '✓' : s.attendance[d.dateStr] === 'absent' ? '✗' : (s.transferNote ? '–' : '')}</td>`
               ).join('');
               const rClass = rateClass(s.percentage);
               return `<tr>
                 <td>${s.sno}</td>
-                <td>${s.name}</td>
+                <td>${s.name}${s.transferNote ? `<div style="font-size:6.5pt;font-weight:600;color:${s.isCurrentMember ? '#2563eb' : '#c2410c'}">${s.transferNote}</div>` : ''}</td>
                 <td>${s.grade}</td>
                 ${dayCells}
                 <td style="text-align:center;font-weight:700">${s.totalPresent}</td>
@@ -203,6 +203,9 @@ const headHtml = (title) => `
           </tbody>
         </table>`;
       });
+      if (cls.students.some(s => s.transferNote)) {
+        body += `<p style="font-size:6.5pt;color:#6b7280;margin-top:4px">Transferred students: only days attended in this class are counted ( – = day spent in another class ). Their other days appear under their other class.</p>`;
+      }
     });
   }
 
