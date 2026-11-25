@@ -216,7 +216,10 @@ export const reportsAPI = {
   getDaily: (params) => api.get('/reports/daily', { params }),
   getFullYear: (params) => api.get('/reports/full-year', { params }),
   getClass: (classId, params) => api.get(`/reports/class/${classId}`, { params }),
-  getStudent: (studentId) => api.get(`/reports/student/${studentId}`),
+  // params.classId (optional) narrows the student report to one class; omit for the complete history
+  getStudent: (studentId, params) => api.get(`/reports/student/${studentId}`, { params }),
+  // Current AND former students of a class (used by the class → student picker)
+  getClassStudents: (classId) => api.get(`/reports/class/${classId}/students`),
   getTeacher: (teacherId) => api.get(`/reports/teacher/${teacherId}`),
   getVolunteer: (volunteerId) => api.get(`/reports/volunteer/${volunteerId}`),
   // FIX: Added missing village and category report endpoints

@@ -4,6 +4,8 @@ const Class = require('../models/Class');
 const Settings = require('../models/Settings');
 const { generateStudentId } = require('../services/studentIdService');
 const { notifyPendingVerification } = require('../services/notificationService');
+const ClassHistory = require('../models/ClassHistory');
+const { recordClassChanges } = require('../services/classTransferService');
 
 const GRADE_TO_CATEGORY = {
   PreKG: 'Beginner', LKG: 'Beginner', UKG: 'Beginner',
@@ -135,6 +137,12 @@ const createStudent = async (req, res, next) => {
 
     const studentId = await generateStudentId(studentData.grade, settings.year);
     const student = await Student.create({ ...studentData, studentId });
+    // First allocation (if a class was chosen at creation) starts the class timeline
+    if (student.classAssigned) {
+      await recordClassChanges([{ _id: student._id, classAssigned: null, vbsYear: student.vbsYear }], student.classAssigned, {
+        userId: req.user._id, reason: 'Initial allocation',
+      });
+    }
     res.status(201).json({ success: true, message: 'Student created successfully', data: student });
   } catch (err) { next(err); }
 };
@@ -149,6 +157,14 @@ const updateStudent = async (req, res, next) => {
 
     const updated = await Student.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true })
       .populate('classAssigned', 'name category');
+
+    // Log the transfer. Past attendance stays on the class it was taken in,
+    // so the old class keeps this student's history.
+    if (updateData.classAssigned !== undefined) {
+      await recordClassChanges([student], updateData.classAssigned, {
+        userId: req.user._id, reason: req.body.transferReason,
+      });
+    }
     res.json({ success: true, message: 'Student updated', data: updated });
   } catch (err) { next(err); }
 };
@@ -157,6 +173,7 @@ const deleteStudent = async (req, res, next) => {
   try {
     const student = await Student.findByIdAndDelete(req.params.id);
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+    await ClassHistory.deleteMany({ student: student._id });
     res.json({ success: true, message: 'Student deleted' });
   } catch (err) { next(err); }
 };
@@ -166,6 +183,7 @@ const bulkDeleteStudents = async (req, res, next) => {
     const { ids } = req.body;
     if (!ids?.length) return res.status(400).json({ success: false, message: 'No student IDs provided' });
     const result = await Student.deleteMany({ _id: { $in: ids } });
+    await ClassHistory.deleteMany({ student: { $in: ids } });
     res.json({ success: true, message: `${result.deletedCount} students deleted` });
   } catch (err) { next(err); }
 };
@@ -181,7 +199,10 @@ const bulkAllocate = async (req, res, next) => {
     if (!cls) return res.status(404).json({ success: false, message: 'Class not found' });
 
     // Allow allocation even with grade mismatches — just warn about them
+    // Snapshot current classes first so every real transfer is logged
+    const before = await Student.find({ _id: { $in: studentIds } }).select('classAssigned vbsYear');
     await Student.updateMany({ _id: { $in: studentIds } }, { classAssigned: classId });
+    await recordClassChanges(before, classId, { userId: req.user._id, reason: req.body.reason });
 
     const updatedStudents = await Student.find({ _id: { $in: studentIds } }).select('name grade');
     const { CLASS_GRADE_RANGES } = Class;

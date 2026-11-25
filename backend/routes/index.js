@@ -26,7 +26,7 @@ const {
 } = require('../controllers/teacherVolunteerAttendanceController');
 const { getDashboardStats, getStudentAnalytics, getAttendanceTrends, getModificationsSummary } = require('../controllers/analyticsController');
 const {
-  getDailyReport, getClassReport, getStudentReport, getTeacherReport,
+  getDailyReport, getClassReport, getClassStudents, getStudentReport, getTeacherReport,
   getVolunteerReport, getFullYearReport,
   getVillageList, getVillageReport, getCategoryReport, getStudentAttendanceReport, getReligionReport,
 } = require('../controllers/reportsController');
@@ -186,6 +186,7 @@ router.get('/reports/villages', protect, authorize('admin', 'viewer'), getVillag
 router.get('/reports/village', protect, authorize('admin', 'viewer'), getVillageReport);
 router.get('/reports/category/:category', protect, authorize('admin', 'viewer'), getCategoryReport);
 router.get('/reports/class/:classId', protect, authorize('admin', 'viewer'), getClassReport);
+router.get('/reports/class/:classId/students', protect, authorize('admin', 'viewer'), getClassStudents);
 router.get('/reports/student/:studentId', protect, authorize('admin', 'viewer'), getStudentReport);
 router.get('/reports/teacher/:teacherId', protect, authorize('admin', 'viewer'), getTeacherReport);
 router.get('/reports/volunteer/:volunteerId', protect, authorize('admin', 'viewer'), getVolunteerReport);
